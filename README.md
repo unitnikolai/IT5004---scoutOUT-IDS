@@ -1,8 +1,8 @@
 # ScoutOut - Packet Capture Viewer
 
-A modern web application for viewing and analyzing network packet capture data. Built with React frontend and Node.js/Express backend.
+Scout OUT is a plug and play home cybersecurity system that helps families easily monitor and protect their Wi Fi networks and IoT devices through simple, real time alerts and controls.
 
-![ScoutOut Application](put SS)
+!!!PUT SCREENSHOT!!!
 
 ## Features
 
