@@ -1,0 +1,44 @@
+import axios from 'axios';
+import { PacketData, PacketResponse, StatsData, ApiFilters } from '../types/packet';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5050/api';
+
+const api = axios.create({
+  baseURL: API_BASE_URL,
+  timeout: 10000,
+});
+
+export const packetService = {
+  // Get health status
+  async getHealth(): Promise<{ status: string; timestamp: string }> {
+    const response = await api.get('/health');
+    return response.data;
+  },
+
+  // Get packets with optional filters
+  async getPackets(filters: ApiFilters = {}): Promise<PacketResponse> {
+    const params = new URLSearchParams();
+    
+    if (filters.limit) params.append('limit', filters.limit.toString());
+    if (filters.protocol) params.append('protocol', filters.protocol);
+    if (filters.sourceIP) params.append('sourceIP', filters.sourceIP);
+    if (filters.destIP) params.append('destIP', filters.destIP);
+    
+    const response = await api.get(`/packets?${params.toString()}`);
+    return response.data;
+  },
+
+  // Get single packet by ID
+  async getPacketById(id: number): Promise<PacketData> {
+    const response = await api.get(`/packets/${id}`);
+    return response.data;
+  },
+
+  // Get statistics
+  async getStats(): Promise<StatsData> {
+    const response = await api.get('/stats');
+    return response.data;
+  },
+};
+
+export default packetService;

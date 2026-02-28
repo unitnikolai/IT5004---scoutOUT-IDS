@@ -1,0 +1,88 @@
+.stats-container {
+  margin: 20px 0;
+}
+
+.stats-container h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  text-align: center;
+}
+
+.stat-card h3 {
+  margin: 0 0 10px 0;
+  color: #666;
+  font-size: 1em;
+  font-weight: 500;
+}
+
+.stat-value {
+  font-size: 2em;
+  font-weight: bold;
+  color: #2196F3;
+  margin: 0;
+}
+
+.stat-detail {
+  margin: 5px 0;
+  font-size: 0.9em;
+  color: #666;
+  text-align: left;
+}
+
+.protocol-distribution {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.protocol-distribution h3 {
+  margin: 0 0 20px 0;
+  color: #333;
+}
+
+.protocol-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.protocol-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.protocol-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.protocol-progress {
+  height: 8px;
+  background: #e0e0e0;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.protocol-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #2196F3, #4CAF50);
+  transition: width 0.3s ease;
+}
