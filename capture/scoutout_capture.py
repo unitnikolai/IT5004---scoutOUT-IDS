@@ -4,12 +4,14 @@ ScoutOut Packet Capture for Raspberry Pi
 Captures network packets using scapy and sends them to ScoutOut API
 
 Requirements:
-- pip install scapy requests
-- Run with sudo for packet capture permissions
+    pip install scapy requests
+
+Run with sudo for packet capture permissions.
 
 Usage:
-sudo python3 scoutout_capture.py --api-url http://your-scoutout-server:5050/api
+    sudo python3 scoutout_capture.py --api-url http://your-scoutout-server:5050/api
 """
+
 import json
 import time
 import signal
@@ -17,565 +19,705 @@ import sys
 import argparse
 import logging
 import threading
-from queue import Queue, Empty
+from collections import deque
+from queue import Queue, Full, Empty
 from datetime import datetime, timezone
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import os
 import requests
-from scapy.all import sniff,  IP, IPv6, TCP, UDP, ICMP, Raw
+from scapy.all import sniff, IP, IPv6, TCP, UDP, ICMP, Raw
 from scapy.packet import Packet
 
-# Configure logging
+# ---------------------------------------------------------------------------
+# Logging
+# ---------------------------------------------------------------------------
+
 logging.basicConfig(
-    level=logging.DEBUG,  # Changed to DEBUG for more visibility
-    format='%(asctime)s - %(levelname)s - %(message)s',
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
     handlers=[
-        logging.FileHandler('scoutout_capture.log'),
-        logging.StreamHandler()
-    ]
+        logging.FileHandler("scoutout_capture.log"),
+        logging.StreamHandler(),
+    ],
 )
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# Ports whose traffic should never be forwarded to the API
+_FILTER_PORTS: frozenset = frozenset({5050})
+
+# Application-layer protocol detection by port
+_TCP_PROTO: Dict[int, str] = {
+    80: "HTTP",
+    443: "HTTPS",
+    22: "SSH",
+    21: "FTP",
+    25: "SMTP",
+    587: "SMTP",
+    465: "SMTP",
+    8080: "HTTP",
+    8443: "HTTPS",
+}
+
+_UDP_PROTO: Dict[int, str] = {
+    53: "DNS",
+    67: "DHCP",
+    68: "DHCP",
+    123: "NTP",
+    5353: "mDNS",
+    1900: "SSDP",
+}
+
+# Queue high-water mark — stop extracting when we reach this fraction full
+_QUEUE_HIGH_WATER: float = 0.85
+
+# Payload preview length (bytes decoded / hex chars)
+_PAYLOAD_PREVIEW: int = 200
+
+# Web protocols that get priority batching
+_WEB_PROTOCOLS: frozenset = frozenset({"HTTP", "HTTPS"})
+
+
+# ---------------------------------------------------------------------------
+# PacketCapture
+# ---------------------------------------------------------------------------
+
 class PacketCapture:
-    def __init__(self, api_url: str, interface: str = None, 
-                 max_queue_size: int = 1000, batch_size: int = 50,
-                 batch_wait_time: float = 0.5):
-        self.api_url = api_url.rstrip('/')
+    """
+    Captures network packets with scapy and forwards them in batches to the
+    ScoutOut REST API.
+
+    Architecture
+    ────────────
+    • scapy's sniff() calls _packet_handler() on every captured frame —
+      synchronously, on scapy's internal thread.
+    • _packet_handler() does a cheap early-exit check (queue saturation, port
+      filter) *before* calling the expensive _extract_packet_data().
+    • Extracted dicts are placed into a bounded Queue.
+    • A single background sender thread drains the queue, separates web traffic
+      from other traffic, and flushes each bucket either when it reaches its
+      target size *or* when a time deadline expires — whichever comes first.
+      This prevents either bucket from starving.
+    • _send_batch() retries with exponential back-off on transient errors and
+      honours HTTP 429 Retry-After headers.
+    """
+
+    def __init__(
+        self,
+        api_url: str,
+        interface: Optional[str] = None,
+        max_queue_size: int = 1000,
+        batch_size: int = 50,
+        batch_wait_time: float = 2.0,
+    ) -> None:
+        self.api_url = api_url.rstrip("/")
         self.interface = interface
         self.max_queue_size = max_queue_size
         self.batch_size = batch_size
         self.batch_wait_time = batch_wait_time
-        
-        self.packet_queue = Queue(maxsize=max_queue_size)
-        self.packet_counter = 0
-        self.running = False
-        self.last_batch_send_time = time.time()
-        
-        # Statistics
-        self.stats = {
-            'captured': 0,
-            'sent': 0,
-            'failed': 0,
-            'dropped': 0,
-            'start_time': None
+
+        # Internal queue — bounded so the process never OOMs
+        self.packet_queue: Queue = Queue(maxsize=max_queue_size)
+
+        self._packet_counter: int = 0
+        self._counter_lock = threading.Lock()
+        self.running: bool = False
+
+        self.stats: Dict[str, Any] = {
+            "captured": 0,
+            "sent": 0,
+            "failed": 0,
+            "dropped": 0,
+            "start_time": None,
         }
-        
-        # API session for connection pooling
+        self._stats_lock = threading.Lock()
+
+        # Reusable HTTP session with connection pooling
         self.session = requests.Session()
-        self.session.headers.update({
-            'Content-Type': 'application/json',
-            'User-Agent': 'ScoutOut-RPi-Capture/1.0'
-        })
-        
-        # Register signal handlers for clean shutdown
+        self.session.headers.update(
+            {
+                "Content-Type": "application/json",
+                "User-Agent": "ScoutOut-RPi-Capture/1.0",
+            }
+        )
+        # Keep up to 4 connections alive (enough for batched posts + health checks)
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=2,
+            pool_maxsize=4,
+            max_retries=0,  # We handle retries ourselves
+        )
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
 
-    def _signal_handler(self, signum, frame):
-        """Handle shutdown signals gracefully"""
-        logger.info(f"Received signal {signum}, shutting down...")
+    # ------------------------------------------------------------------
+    # Signal handling
+    # ------------------------------------------------------------------
+
+    def _signal_handler(self, signum, frame) -> None:
+        logger.info("Received signal %s, shutting down…", signum)
         self.stop()
 
-    def _extract_sni_from_tls(self, data: bytes) -> Optional[str]:
-        """Extract SNI (Server Name Indication) from TLS Client Hello"""
+    # ------------------------------------------------------------------
+    # Packet parsing helpers
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _extract_sni(data: bytes) -> Optional[str]:
+        """
+        Parse a TLS ClientHello and return the SNI hostname, or None.
+        All index arithmetic is bounds-checked; exceptions are swallowed.
+        """
         try:
-            # TLS Record Header check: 0x16 for Handshake
-            if len(data) < 6 or data[0] != 0x16:
+            # TLS record: type=0x16 (handshake), major version=0x03
+            if len(data) < 6 or data[0] != 0x16 or data[1] != 0x03:
                 return None
-            
-            # TLS version check (should be 0x03, 0x01 - 0x03 for TLS versions)
-            if data[1] != 0x03:
-                return None
-            
-            # Skip TLS record header (5 bytes) and handshake header (4 bytes)
-            # Look for Client Hello (handshake type 0x01)
+            # Handshake type must be ClientHello (0x01)
             if len(data) < 43 or data[5] != 0x01:
                 return None
-            
-            # Skip: TLS record (5) + handshake header (4) + version (2) + random (32) = 43
-            # Parse session ID
-            session_id_length = data[43]
-            offset = 44 + session_id_length
-            
-            if len(data) < offset + 2:
+
+            # After: TLS record (5) + handshake header (4) + version (2) + random (32)
+            offset = 43
+            if offset >= len(data):
                 return None
-            
-            # Parse cipher suites
-            cipher_suites_length = int.from_bytes(data[offset:offset+2], 'big')
-            offset += 2 + cipher_suites_length
-            
-            if len(data) < offset + 1:
+
+            session_id_len = data[offset]
+            offset += 1 + session_id_len
+            if offset + 2 > len(data):
                 return None
-            
-            # Parse compression methods
-            compression_methods_length = data[offset]
-            offset += 1 + compression_methods_length
-            
-            if len(data) < offset + 2:
+
+            cipher_suites_len = int.from_bytes(data[offset : offset + 2], "big")
+            offset += 2 + cipher_suites_len
+            if offset + 1 > len(data):
                 return None
-            
-            # Parse extensions
-            extensions_length = int.from_bytes(data[offset:offset+2], 'big')
+
+            compression_len = data[offset]
+            offset += 1 + compression_len
+            if offset + 2 > len(data):
+                return None
+
+            extensions_len = int.from_bytes(data[offset : offset + 2], "big")
             offset += 2
-            extensions_end = offset + extensions_length
-            
-            # Look for server_name extension (type 0)
-            while offset < extensions_end - 4:
-                ext_type = int.from_bytes(data[offset:offset+2], 'big')
-                ext_length = int.from_bytes(data[offset+2:offset+4], 'big')
+            end = offset + extensions_len
+
+            while offset + 4 <= end:
+                ext_type = int.from_bytes(data[offset : offset + 2], "big")
+                ext_len  = int.from_bytes(data[offset + 2 : offset + 4], "big")
                 offset += 4
-                
-                if ext_type == 0:  # server_name extension
-                    # Skip list length (2 bytes) and name type (1 byte)
-                    if len(data) < offset + 3:
+                if ext_type == 0:  # server_name
+                    if offset + 5 > len(data):
                         break
-                    name_length = int.from_bytes(data[offset+3:offset+5], 'big')
-                    if len(data) < offset + 5 + name_length:
+                    name_len = int.from_bytes(data[offset + 3 : offset + 5], "big")
+                    name_end = offset + 5 + name_len
+                    if name_end > len(data):
                         break
-                    hostname = data[offset+5:offset+5+name_length].decode('ascii', errors='ignore')
-                    return hostname if hostname else None
-                
-                offset += ext_length
-            
-            return None
-        except Exception as e:
-            logger.debug(f"Failed to extract SNI: {e}")
-            return None
+                    hostname = data[offset + 5 : name_end].decode("ascii", errors="ignore")
+                    return hostname or None
+                offset += ext_len
+
+        except Exception:
+            pass
+        return None
+
+    @staticmethod
+    def _extract_http_host(raw: bytes) -> str:
+        """Return the HTTP Host header value, or empty string."""
+        try:
+            text = raw.decode("utf-8", errors="ignore")
+            for line in text.split("\r\n"):
+                low = line.lower()
+                if low.startswith("host:"):
+                    return line.split(":", 1)[1].strip()
+        except Exception:
+            pass
+        return ""
+
+    @staticmethod
+    def _safe_payload(raw: bytes) -> str:
+        """Return a UTF-8 decoded snippet, falling back to hex."""
+        try:
+            return raw.decode("utf-8", errors="ignore")[:_PAYLOAD_PREVIEW].strip()
+        except Exception:
+            return raw.hex()[:_PAYLOAD_PREVIEW]
+
+    def _next_id(self) -> int:
+        with self._counter_lock:
+            self._packet_counter += 1
+            return self._packet_counter
 
     def _extract_packet_data(self, packet: Packet) -> Optional[Dict[str, Any]]:
-        """Extract packet information and convert to API format"""
+        """
+        Convert a scapy Packet into a dict matching the API schema.
+        Returns None if the packet has no IP/IPv6 layer (e.g. pure ARP).
+        """
         try:
-            self.packet_counter += 1
-            
-            # Initialize packet data structure
-            packet_data = {
-                'id': self.packet_counter,
-                'timestamp': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
-                'protocol': 'Unknown',
-                'sourceIP': '',
-                'destIP': '',
-                'sourcePort': 0,
-                'destPort': 0,
-                'length': len(packet),
-                'flags': None,
-                'payload': '',
-                'hostname': ''
+            pkt_id = self._next_id()
+            now    = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+            data: Dict[str, Any] = {
+                "id":         pkt_id,
+                "timestamp":  now,
+                "protocol":   "Unknown",
+                "sourceIP":   "",
+                "destIP":     "",
+                "sourcePort": 0,
+                "destPort":   0,
+                "length":     len(packet),
+                "flags":      None,
+                "payload":    "",
+                "hostname":   "",
             }
 
-            ip_layer = None
-            is_ipv6 = False
-
-            # Handle IPv4 packets
+            # ── Network layer ──────────────────────────────────────────
             if IP in packet:
-                ip_layer = packet[IP]
-                packet_data['sourceIP'] = ip_layer.src
-                packet_data['destIP'] = ip_layer.dst
-                is_ipv6 = False
-
-            # Handle IPv6 packets
+                ip = packet[IP]
+                data["sourceIP"] = ip.src
+                data["destIP"]   = ip.dst
             elif IPv6 in packet:
-                ip_layer = packet[IPv6]
-                packet_data['sourceIP'] = ip_layer.src
-                packet_data['destIP'] = ip_layer.dst
-                is_ipv6 = True
-
-            # Extract transport layer info if we have IP
-            if ip_layer is not None:
-                # TCP packets
-                if TCP in packet:
-                    tcp_layer = packet[TCP]
-                    packet_data['protocol'] = 'TCP'
-                    packet_data['sourcePort'] = int(tcp_layer.sport)
-                    packet_data['destPort'] = int(tcp_layer.dport)
-                    
-                    # Extract TCP flags
-                    flags = []
-                    if tcp_layer.flags.S: flags.append('SYN')
-                    if tcp_layer.flags.A: flags.append('ACK') 
-                    if tcp_layer.flags.P: flags.append('PSH')
-                    if tcp_layer.flags.F: flags.append('FIN')
-                    if tcp_layer.flags.R: flags.append('RST')
-                    if tcp_layer.flags.U: flags.append('URG')
-                    packet_data['flags'] = '|'.join(flags) if flags else None
-                    
-                    # Identify application-layer protocols
-                    if tcp_layer.dport == 80 or tcp_layer.sport == 80:
-                        packet_data['protocol'] = 'HTTP'
-                    elif tcp_layer.dport == 443 or tcp_layer.sport == 443:
-                        packet_data['protocol'] = 'HTTPS'
-                    elif tcp_layer.dport == 22 or tcp_layer.sport == 22:
-                        packet_data['protocol'] = 'SSH'
-                    elif tcp_layer.dport == 21 or tcp_layer.sport == 21:
-                        packet_data['protocol'] = 'FTP'
-                    elif tcp_layer.dport == 25 or tcp_layer.sport == 25:
-                        packet_data['protocol'] = 'SMTP'
-
-                # UDP packets  
-                elif UDP in packet:
-                    udp_layer = packet[UDP]
-                    packet_data['protocol'] = 'UDP'
-                    packet_data['sourcePort'] = int(udp_layer.sport)
-                    packet_data['destPort'] = int(udp_layer.dport)
-                    
-                    # Identify UDP-based protocols
-                    if udp_layer.dport == 53 or udp_layer.sport == 53:
-                        packet_data['protocol'] = 'DNS'
-                    elif udp_layer.dport == 67 or udp_layer.sport == 67 or \
-                         udp_layer.dport == 68 or udp_layer.sport == 68:
-                        packet_data['protocol'] = 'DHCP'
-                    elif udp_layer.dport == 123 or udp_layer.sport == 123:
-                        packet_data['protocol'] = 'NTP'
-
-                # ICMP packets
-                elif ICMP in packet:
-                    packet_data['protocol'] = 'ICMP'
-                    packet_data['sourcePort'] = 0
-                    packet_data['destPort'] = 0
-
-            # Extract hostname from HTTP/HTTPS requests
-            if packet_data['protocol'] == 'HTTP' and Raw in packet:
-                # Extract Host header from HTTP
-                try:
-                    raw_data = packet[Raw].load
-                    payload = raw_data.decode('utf-8', errors='ignore')
-                    # Look for Host header in HTTP request
-                    for line in payload.split('\r\n'):
-                        if line.lower().startswith('host:'):
-                            packet_data['hostname'] = line.split(':', 1)[1].strip()
-                            break
-                except:
-                    pass
-            
-            elif packet_data['protocol'] == 'HTTPS' and Raw in packet:
-                # Extract SNI from TLS handshake for HTTPS
-                try:
-                    raw_data = packet[Raw].load
-                    sni = self._extract_sni_from_tls(raw_data)
-                    if sni:
-                        packet_data['hostname'] = sni
-                except:
-                    pass
-
-            # Extract payload (first 200 chars for brevity)
-            if Raw in packet:
-                try:
-                    raw_data = packet[Raw].load
-                    # Try to decode as UTF-8, fall back to hex
-                    try:
-                        payload = raw_data.decode('utf-8', errors='ignore')
-                        packet_data['payload'] = payload[:200].strip()
-                    except:
-                        packet_data['payload'] = raw_data.hex()[:200]
-                except:
-                    packet_data['payload'] = f"{packet_data['protocol']} packet"
+                ip = packet[IPv6]
+                data["sourceIP"] = ip.src
+                data["destIP"]   = ip.dst
             else:
-                packet_data['payload'] = f"{packet_data['protocol']} {packet_data['sourceIP']}:{packet_data['sourcePort']} -> {packet_data['destIP']}:{packet_data['destPort']}"
-            
-            return packet_data
+                return None  # No IP layer — skip (ARP, etc.)
 
-        except Exception as e:
-            logger.error(f"Error extracting packet data: {e}")
+            # ── Transport layer ────────────────────────────────────────
+            if TCP in packet:
+                tcp = packet[TCP]
+                sport, dport = int(tcp.sport), int(tcp.dport)
+                data["sourcePort"] = sport
+                data["destPort"]   = dport
+
+                # TCP flags
+                flags = []
+                f = tcp.flags
+                if f.S: flags.append("SYN")
+                if f.A: flags.append("ACK")
+                if f.P: flags.append("PSH")
+                if f.F: flags.append("FIN")
+                if f.R: flags.append("RST")
+                if f.U: flags.append("URG")
+                if flags:
+                    data["flags"] = "|".join(flags)
+
+                # Protocol by well-known port (check both directions)
+                proto = (
+                    _TCP_PROTO.get(dport)
+                    or _TCP_PROTO.get(sport)
+                    or "TCP"
+                )
+                data["protocol"] = proto
+
+                # Application-layer enrichment
+                if Raw in packet:
+                    raw = packet[Raw].load
+                    if proto == "HTTP":
+                        data["hostname"] = self._extract_http_host(raw)
+                    elif proto == "HTTPS":
+                        sni = self._extract_sni(raw)
+                        if sni:
+                            data["hostname"] = sni
+                    data["payload"] = self._safe_payload(raw)
+
+            elif UDP in packet:
+                udp = packet[UDP]
+                sport, dport = int(udp.sport), int(udp.dport)
+                data["sourcePort"] = sport
+                data["destPort"]   = dport
+                data["protocol"] = (
+                    _UDP_PROTO.get(dport)
+                    or _UDP_PROTO.get(sport)
+                    or "UDP"
+                )
+                if Raw in packet:
+                    data["payload"] = self._safe_payload(packet[Raw].load)
+
+            elif ICMP in packet:
+                data["protocol"] = "ICMP"
+
+            # Fallback payload summary when Raw is absent
+            if not data["payload"]:
+                data["payload"] = (
+                    f"{data['protocol']} "
+                    f"{data['sourceIP']}:{data['sourcePort']} "
+                    f"-> {data['destIP']}:{data['destPort']}"
+                )
+
+            return data
+
+        except Exception as exc:
+            logger.debug("Packet extraction error: %s", exc)
             return None
 
-    def _packet_handler(self, packet: Packet):
-        """Handle captured packets - called by scapy"""
+    # ------------------------------------------------------------------
+    # Packet handler (called by scapy — keep it lean)
+    # ------------------------------------------------------------------
+
+    def _packet_handler(self, packet: Packet) -> None:
+        """
+        Fast path called by scapy for every captured frame.
+        We do as little work as possible here to avoid slowing scapy down.
+        """
         if not self.running:
             return
 
-        # Filter out backend server traffic (port 5050)
+        # ── Port filter (API traffic, etc.) ───────────────────────────
         if TCP in packet:
-            tcp_layer = packet[TCP]
-            if tcp_layer.sport == 5050 or tcp_layer.dport == 5050:
-                return  # Skip API traffic
+            tcp = packet[TCP]
+            if tcp.sport in _FILTER_PORTS or tcp.dport in _FILTER_PORTS:
+                return
         elif UDP in packet:
-            udp_layer = packet[UDP]
-            if udp_layer.sport == 5050 or udp_layer.dport == 5050:
-                return  # Skip API traffic
+            udp = packet[UDP]
+            if udp.sport in _FILTER_PORTS or udp.dport in _FILTER_PORTS:
+                return
+
+        # ── Back-pressure: skip expensive extraction if queue is nearly full ──
+        if self.packet_queue.qsize() >= self.max_queue_size * _QUEUE_HIGH_WATER:
+            with self._stats_lock:
+                self.stats["dropped"] += 1
+            return
 
         packet_data = self._extract_packet_data(packet)
-        if packet_data:
-            try:
-                self.packet_queue.put(packet_data, block=False)
-                self.stats['captured'] += 1
-                
-                # Log progress every 10 packets for debugging
-                if self.stats['captured'] % 10 == 0:
-                    queue_size = self.packet_queue.qsize()
-                    logger.info(f"Captured {self.stats['captured']} packets, "
-                              f"sent {self.stats['sent']}, queue size: {queue_size}, "
-                              f"dropped {self.stats['dropped']}")
-                    
-            except Exception as e:
-                self.stats['dropped'] += 1
-                if self.stats['dropped'] % 5 == 0:
-                    logger.warning(f"Packet queue full, dropped {self.stats['dropped']} packets: {e}")
+        if packet_data is None:
+            return
 
-    def _api_sender_thread(self):
-        """Background thread to send packets to API - prioritizes web traffic"""
-        web_batch = []      # HTTP/HTTPS packets
-        other_batch = []    # Other protocols
-        web_batch_time = time.time()
-        other_batch_time = time.time()
-        
-        WEB_BATCH_SIZE = 10  # Send web packets faster (smaller batches)
-        WEB_BATCH_WAIT = 0.2  # Send web packets more frequently
-        
-        logger.info("API sender thread started")
-        
+        try:
+            self.packet_queue.put_nowait(packet_data)
+            with self._stats_lock:
+                self.stats["captured"] += 1
+                captured = self.stats["captured"]
+
+            if captured % 50 == 0:
+                logger.info(
+                    "Captured %d | sent %d | queue %d | dropped %d",
+                    captured,
+                    self.stats["sent"],
+                    self.packet_queue.qsize(),
+                    self.stats["dropped"],
+                )
+        except Full:
+            with self._stats_lock:
+                self.stats["dropped"] += 1
+
+    # ------------------------------------------------------------------
+    # Sender thread
+    # ------------------------------------------------------------------
+
+    def _api_sender_thread(self) -> None:
+        """
+        Background thread: drain the queue and POST packets to the API.
+
+        Two separate buckets with independent flush triggers:
+          • web_batch   — HTTP/HTTPS — small batches, short deadline
+          • other_batch — everything else — larger batches, longer deadline
+
+        Each bucket flushes when EITHER its size threshold OR its time
+        deadline is reached.  This guarantees neither bucket can starve.
+        """
+        WEB_BATCH_SIZE  = 10
+        WEB_BATCH_WAIT  = 0.5    # seconds
+        OTHER_BATCH_WAIT = self.batch_wait_time  # configurable (default 2 s)
+
+        web_batch:   List[Dict] = []
+        other_batch: List[Dict] = []
+        web_t   = time.monotonic()
+        other_t = time.monotonic()
+
+        logger.info("API sender thread started.")
+
         while self.running or not self.packet_queue.empty():
-            try:
-                # Get packet from queue (non-blocking to check multiple times)
+            # ── Drain up to 100 items per loop tick ──────────────────
+            drained = 0
+            while drained < 100:
                 try:
-                    packet_data = self.packet_queue.get(timeout=0.1)
-                    
-                    # Separate web traffic (HTTP/HTTPS) from other traffic
-                    if packet_data['protocol'] in ['HTTP', 'HTTPS']:
-                        web_batch.append(packet_data)
-                        logger.debug(f"Web packet added to batch: {len(web_batch)}/{WEB_BATCH_SIZE}")
+                    pkt = self.packet_queue.get_nowait()
+                    if pkt["protocol"] in _WEB_PROTOCOLS:
+                        web_batch.append(pkt)
                     else:
-                        other_batch.append(packet_data)
-                        logger.debug(f"Other packet added to batch: {len(other_batch)}/{self.batch_size}")
-                    
+                        other_batch.append(pkt)
+                    drained += 1
                 except Empty:
-                    pass
-                
-                # Check if web batch should be sent
-                time_since_web_send = time.time() - web_batch_time
-                web_should_send = (
-                    (len(web_batch) >= WEB_BATCH_SIZE and time_since_web_send >= WEB_BATCH_WAIT) or
-                    (len(web_batch) > 0 and time_since_web_send >= 0.5)  # Send after 0.5s regardless
-                )
-                
-                if web_should_send:
-                    logger.info(f"Sending web batch of {len(web_batch)} packets")
-                    self._send_batch(web_batch)
-                    web_batch = []
-                    web_batch_time = time.time()
-                
-                # Check if other batch should be sent
-                time_since_other_send = time.time() - other_batch_time
-                other_should_send = (
-                    (len(other_batch) >= self.batch_size and time_since_other_send >= self.batch_wait_time) or
-                    (not self.running and len(other_batch) > 0)
-                )
-                
-                if other_should_send:
-                    logger.info(f"Sending other batch of {len(other_batch)} packets")
-                    self._send_batch(other_batch)
-                    other_batch = []
-                    other_batch_time = time.time()
-                
-                # Send remaining batches on shutdown
-                if not self.running:
-                    if len(web_batch) > 0:
-                        logger.info(f"Sending final web batch of {len(web_batch)} packets")
-                        self._send_batch(web_batch)
-                        web_batch = []
-                    
-                    if len(other_batch) > 0:
-                        logger.info(f"Sending final other batch of {len(other_batch)} packets")
-                        self._send_batch(other_batch)
-                        other_batch = []
+                    break
 
-            except Exception as e:
-                logger.error(f"Error in API sender thread: {e}", exc_info=True)
-                time.sleep(1)
+            if drained == 0:
+                # Nothing in the queue — sleep briefly to avoid busy-spin
+                time.sleep(0.05)
 
-    def _send_batch(self, batch):
-        """Send a batch of packets to the API in a single request"""
+            now = time.monotonic()
+
+            # ── Web batch flush ───────────────────────────────────────
+            if web_batch and (
+                len(web_batch) >= WEB_BATCH_SIZE
+                or (now - web_t) >= WEB_BATCH_WAIT
+            ):
+                self._send_batch(web_batch)
+                web_batch = []
+                web_t = time.monotonic()
+
+            # ── Other batch flush ─────────────────────────────────────
+            if other_batch and (
+                len(other_batch) >= self.batch_size
+                or (now - other_t) >= OTHER_BATCH_WAIT
+            ):
+                self._send_batch(other_batch)
+                other_batch = []
+                other_t = time.monotonic()
+
+        # ── Final drain on shutdown ───────────────────────────────────
+        if web_batch:
+            logger.info("Final flush: %d web packets", len(web_batch))
+            self._send_batch(web_batch)
+        if other_batch:
+            logger.info("Final flush: %d other packets", len(other_batch))
+            self._send_batch(other_batch)
+
+        logger.info("API sender thread exiting.")
+
+    # ------------------------------------------------------------------
+    # HTTP send with retry / back-off
+    # ------------------------------------------------------------------
+
+    def _send_batch(self, batch: List[Dict]) -> None:
+        """
+        POST a batch of packet dicts to the API.
+
+        Retry policy:
+          • HTTP 429 → honour Retry-After header (default 5 s)
+          • Timeout / connection error → exponential back-off (5 s, 10 s, 20 s)
+          • All other non-2xx → log and give up (don't retry; avoids duplicate data)
+          • Max 3 attempts total
+        """
         if not batch:
             return
-        
-        retry_count = 0
+
         max_retries = 3
-        
-        while retry_count < max_retries:
+        attempt = 0
+
+        while attempt < max_retries:
             try:
-                # Send entire batch in one request for efficiency
                 response = self.session.post(
                     f"{self.api_url}/packets/",
-                    json=batch,  # Send array of packets
-                    timeout=10.0
+                    json=batch,
+                    timeout=10.0,
                 )
-                
+
                 if response.status_code == 201:
                     result = response.json()
-                    packets_added = result.get('packetsAdded', len(batch))
-                    self.stats['sent'] += packets_added
-                    logger.debug(f"Batch sent successfully: {packets_added}/{len(batch)} packets")
-                    return  # Success, exit retry loop
-                    
-                elif response.status_code == 429:
-                    # Rate limited - implement exponential backoff
-                    retry_after = int(response.headers.get('Retry-After', 5))
-                    logger.warning(f"Rate limited. Waiting {retry_after}s before retry ({retry_count + 1}/{max_retries})...")
+                    added  = result.get("packetsAdded", len(batch))
+                    with self._stats_lock:
+                        self.stats["sent"] += added
+                    logger.debug("Batch OK: %d/%d packets accepted", added, len(batch))
+                    return
+
+                if response.status_code == 429:
+                    retry_after = int(response.headers.get("Retry-After", 5))
+                    attempt += 1
+                    logger.warning(
+                        "Rate-limited (429). Waiting %ds (attempt %d/%d)…",
+                        retry_after, attempt, max_retries,
+                    )
                     time.sleep(retry_after)
-                    retry_count += 1
-                    
-                else:
-                    self.stats['failed'] += len(batch)
-                    logger.warning(f"Batch send failed with status {response.status_code}: {response.text}")
-                    return  # Don't retry on other errors
-                    
-            except requests.Timeout as e:
-                retry_count += 1
-                if retry_count < max_retries:
-                    wait_time = min(5 * (2 ** retry_count), 30)  # Exponential backoff, max 30s
-                    logger.warning(f"Timeout sending batch. Retrying in {wait_time}s ({retry_count}/{max_retries})...")
-                    time.sleep(wait_time)
-                else:
-                    self.stats['failed'] += len(batch)
-                    logger.error(f"Failed to send batch after {max_retries} retries: {e}")
-                    
-            except requests.ConnectionError as e:
-                retry_count += 1
-                if retry_count < max_retries:
-                    wait_time = min(5 * (2 ** retry_count), 30)
-                    logger.warning(f"Connection error. Retrying in {wait_time}s ({retry_count}/{max_retries})...")
-                    time.sleep(wait_time)
-                else:
-                    self.stats['failed'] += len(batch)
-                    logger.error(f"Connection error sending batch: {e}")
-                    
-            except requests.RequestException as e:
-                self.stats['failed'] += len(batch)
-                logger.error(f"Failed to send batch: {e}")
+                    continue
+
+                # Non-retryable error
+                with self._stats_lock:
+                    self.stats["failed"] += len(batch)
+                logger.warning(
+                    "Batch rejected: HTTP %d — %s",
+                    response.status_code,
+                    response.text[:200],
+                )
                 return
-                
-            except Exception as e:
-                self.stats['failed'] += len(batch)  
-                logger.error(f"Unexpected error sending batch: {e}")
+
+            except (requests.Timeout, requests.ConnectionError) as exc:
+                attempt += 1
+                if attempt < max_retries:
+                    wait = min(5 * (2 ** attempt), 30)
+                    logger.warning(
+                        "%s — retrying in %ds (attempt %d/%d)…",
+                        type(exc).__name__, wait, attempt, max_retries,
+                    )
+                    time.sleep(wait)
+                else:
+                    with self._stats_lock:
+                        self.stats["failed"] += len(batch)
+                    logger.error("Batch failed after %d attempts: %s", max_retries, exc)
+
+            except requests.RequestException as exc:
+                with self._stats_lock:
+                    self.stats["failed"] += len(batch)
+                logger.error("Unrecoverable request error: %s", exc)
                 return
+
+            except Exception as exc:
+                with self._stats_lock:
+                    self.stats["failed"] += len(batch)
+                logger.error("Unexpected send error: %s", exc, exc_info=True)
+                return
+
+    # ------------------------------------------------------------------
+    # API health check
+    # ------------------------------------------------------------------
 
     def test_api_connection(self) -> bool:
-        """Test connection to the ScoutOut API"""
         try:
-            response = self.session.get(f"{self.api_url}/health", timeout=10.0)
-            if response.status_code == 200:
-                data = response.json()
-                logger.info(f"✓ API connection successful - Server status: {data.get('status', 'OK')}")
+            resp = self.session.get(f"{self.api_url}/health", timeout=10.0)
+            if resp.status_code == 200:
+                status = resp.json().get("status", "OK")
+                logger.info("✓ API reachable — server status: %s", status)
                 return True
-            else:
-                logger.error(f"✗ API health check failed: {response.status_code}")
-                return False
-        except requests.RequestException as e:
-            logger.error(f"✗ Cannot connect to API: {e}")
+            logger.error("✗ Health check returned HTTP %d", resp.status_code)
+            return False
+        except requests.RequestException as exc:
+            logger.error("✗ Cannot reach API: %s", exc)
             return False
 
-    def start(self, packet_filter: str = ""):
-        """Start packet capture"""
-        logger.info("=" * 50)
-        logger.info("ScoutOut Packet Capture Starting")
-        logger.info("=" * 50)
-        logger.info(f"API URL: {self.api_url}")
-        logger.info(f"Interface: {self.interface or 'all interfaces'}")
-        logger.info(f"Filter: {packet_filter or 'none'}")
-        logger.info(f"Batch size: {self.batch_size}")
-        logger.info(f"Batch wait time: {self.batch_wait_time} seconds")
+    # ------------------------------------------------------------------
+    # Start / stop
+    # ------------------------------------------------------------------
 
-        # Test API connection
+    def start(self, packet_filter: str = "") -> bool:
+        logger.info("=" * 60)
+        logger.info("ScoutOut Packet Capture — starting")
+        logger.info("  API URL   : %s", self.api_url)
+        logger.info("  Interface : %s", self.interface or "all")
+        logger.info("  BPF filter: %s", packet_filter or "(none)")
+        logger.info("  Batch size: %d  |  wait: %.1fs", self.batch_size, self.batch_wait_time)
+        logger.info("  Queue size: %d", self.max_queue_size)
+        logger.info("=" * 60)
+
         if not self.test_api_connection():
-            logger.error("Cannot connect to ScoutOut API. Please check:")
-            logger.error("1. Server is running: cd server && node index.js")
-            logger.error("2. URL is correct")
-            logger.error("3. Network connectivity")
+            logger.error("Cannot connect to ScoutOut API. Aborting.")
+            logger.error("  1. Is the server running?  cd server && node index.js")
+            logger.error("  2. Is the URL correct?    %s", self.api_url)
             return False
 
         self.running = True
-        self.stats['start_time'] = time.time()
+        self.stats["start_time"] = time.monotonic()
 
-        # Start API sender thread
-        api_thread = threading.Thread(target=self._api_sender_thread, daemon=True)
-        api_thread.start()
-        
-        logger.info("Starting packet capture... Press Ctrl+C to stop")
-        
+        sender = threading.Thread(
+            target=self._api_sender_thread,
+            name="api-sender",
+            daemon=True,
+        )
+        sender.start()
+
+        logger.info("Capturing packets… press Ctrl+C to stop.")
+
         try:
-            # Start packet sniffing
             sniff(
-                iface=self.interface,
+                iface=self.interface if self.interface else None,
                 prn=self._packet_handler,
                 filter=packet_filter,
-                store=False
+                store=False,
             )
         except KeyboardInterrupt:
-            logger.info("Received interrupt signal")
-        except Exception as e:
-            logger.error(f"Error during packet capture: {e}")
+            logger.info("KeyboardInterrupt received.")
+        except Exception as exc:
+            logger.error("Capture error: %s", exc, exc_info=True)
         finally:
             self.stop()
-            
+            # Give sender thread up to 10 s to flush remaining packets
+            sender.join(timeout=10)
+
         return True
 
-    def stop(self):
-        """Stop packet capture and cleanup"""
+    def stop(self) -> None:
         if not self.running:
             return
-            
-        logger.info("Stopping packet capture...")
+
+        logger.info("Stopping capture…")
         self.running = False
-        
-        # Wait for remaining packets to be sent
+
+        # Brief wait so in-flight packets can reach the queue before the
+        # sender thread's final drain runs.
         remaining = self.packet_queue.qsize()
-        if remaining > 0:
-            logger.info(f"Sending {remaining} remaining packets...")
-            time.sleep(min(5, remaining * 0.1))  # Wait up to 5 seconds
+        if remaining:
+            logger.info("Waiting for %d queued packets to flush…", remaining)
+            time.sleep(min(5.0, remaining * 0.05))
 
-        # Print final statistics
-        runtime = time.time() - (self.stats['start_time'] or time.time())
-        logger.info("=" * 50)
-        logger.info("Capture Statistics:")
-        logger.info(f"  Runtime: {runtime:.1f} seconds")
-        logger.info(f"  Packets captured: {self.stats['captured']}")
-        logger.info(f"  Packets sent: {self.stats['sent']}")
-        logger.info(f"  Send failures: {self.stats['failed']}")
-        logger.info(f"  Packets dropped: {self.stats['dropped']}")
-        if runtime > 0:
-            logger.info(f"  Capture rate: {self.stats['captured']/runtime:.1f} pkt/sec")
-        logger.info("=" * 50)
+        runtime = time.monotonic() - (self.stats["start_time"] or time.monotonic())
+        rate    = self.stats["captured"] / runtime if runtime > 0 else 0
+
+        logger.info("=" * 60)
+        logger.info("Capture statistics")
+        logger.info("  Runtime  : %.1f s", runtime)
+        logger.info("  Captured : %d  (%.1f pkt/s)", self.stats["captured"], rate)
+        logger.info("  Sent     : %d", self.stats["sent"])
+        logger.info("  Failed   : %d", self.stats["failed"])
+        logger.info("  Dropped  : %d", self.stats["dropped"])
+        logger.info("=" * 60)
 
 
-def main():
-    parser = argparse.ArgumentParser(description='ScoutOut Packet Capture for Raspberry Pi')
-    parser.add_argument('--api-url', '-a', 
-                       default='http://localhost:5050/api',
-                       help='ScoutOut API URL (default: http://localhost:5050/api)')
-    parser.add_argument('--interface', '-i',
-                       help='Network interface to capture on (default: all)')
-    parser.add_argument('--filter', '-f', default='',
-                       help='BPF packet filter (e.g., "tcp port 80")')
-    parser.add_argument('--batch-size', '-b', type=int, default=50,
-                       help='Number of packets to send per API call (default: 50)')
-    parser.add_argument('--batch-wait-time', '-w', type=float, default=0.5,
-                       help='Wait time in seconds before sending batch to API (default: 0.5)')
-    parser.add_argument('--queue-size', '-q', type=int, default=1000,
-                       help='Maximum packet queue size (default: 1000)')
-    parser.add_argument('--verbose', '-v', action='store_true',
-                       help='Enable verbose logging')
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="ScoutOut Packet Capture for Raspberry Pi",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--api-url", "-a",
+        default="http://localhost:5050/api",
+        help="ScoutOut API base URL",
+    )
+    parser.add_argument(
+        "--interface", "-i",
+        default=None,
+        help="Network interface (omit to capture on all)",
+    )
+    parser.add_argument(
+        "--filter", "-f",
+        default="",
+        help='BPF capture filter, e.g. "tcp port 80"',
+    )
+    parser.add_argument(
+        "--batch-size", "-b",
+        type=int, default=50,
+        help="Max packets per API call (non-web traffic)",
+    )
+    parser.add_argument(
+        "--batch-wait-time", "-w",
+        type=float, default=2.0,
+        help="Max seconds to wait before flushing a non-web batch",
+    )
+    parser.add_argument(
+        "--queue-size", "-q",
+        type=int, default=1000,
+        help="Internal packet queue capacity",
+    )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Enable DEBUG logging",
+    )
 
     args = parser.parse_args()
 
     if args.verbose:
         logging.getLogger().setLevel(logging.DEBUG)
 
-    # Check if running as root (required for packet capture)
     if os.geteuid() != 0:
-        logger.error("This script must be run as root for packet capture")
-        logger.error("Please run: sudo python3 scoutout_capture.py")
+        logger.error("Packet capture requires root. Run: sudo python3 scoutout_capture.py")
         sys.exit(1)
 
-    # Create and start packet capture
     capture = PacketCapture(
         api_url=args.api_url,
         interface=args.interface,
         max_queue_size=args.queue_size,
         batch_size=args.batch_size,
-        batch_wait_time=args.batch_wait_time
+        batch_wait_time=args.batch_wait_time,
     )
-    
+
     success = capture.start(args.filter)
     sys.exit(0 if success else 1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

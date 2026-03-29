@@ -4,7 +4,7 @@ services:
       context: ./client
       dockerfile: Dockerfile.frontend
     environment:
-      REACT_APP_API_URL: http://172.20.0.31:5050/api
+      REACT_APP_API_URL: http://192.168.4.115:5050/api
     ports:
       - '3000:3000'
     networks:

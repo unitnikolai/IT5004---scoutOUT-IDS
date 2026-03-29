@@ -1,6 +1,24 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5050/api';
+// Dynamically construct API URL based on current frontend location
+// If REACT_APP_API_URL is set (Docker), use it. Otherwise detect from window location
+const getApiUrl = (): string => {
+  // Use environment variable if set (Docker production)
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Otherwise, dynamically detect based on frontend URL
+  const protocol = window.location.protocol; // http: or https:
+  const hostname = window.location.hostname; // localhost, 192.168.x.x, etc.
+  const port = ':5050'; // Backend API port
+  const path = '/api';
+  
+  return `${protocol}//${hostname}${port}${path}`;
+};
+
+const API_BASE_URL = getApiUrl();
+console.log('[dashboardService] API URL:', API_BASE_URL);
 
 const api = axios.create({
   baseURL: API_BASE_URL,
