@@ -28,15 +28,17 @@ const api = axios.create({
   timeout: 15000, // Increased to avoid timeouts during heavy packet processing
 });
 
-// Helper to safely handle AbortError (including cancelled DNS lookups)
+// Helper to safely handle AbortError (including cancelled DNS lookups)  
 const isAbortError = (error: any): boolean => {
   const message = error?.message?.toLowerCase() || '';
   return (
-    axios.isCancel(error) || 
-    error?.name === 'AbortError' || 
+    axios.isCancel(error) ||
+    error?.name === 'AbortError' ||
     error?.code === 'ECONNABORTED' ||
-    message.includes('ns binding') ||
-    message.includes('aborted')
+    error?.code === 'ERR_CANCELED' ||
+    message.includes('abort') ||
+    message.includes('cancel') ||
+    message.includes('ns binding')
   );
 };
 

@@ -31,21 +31,21 @@ const Analytics: React.FC = () => {
       setMostActiveDevices(topDevicesResponse.data || []);
       setLastUpdated(new Date());
     } catch (err: any) {
-      // Silently ignore abort errors (user navigated away or request was cancelled)
-      // Includes DNS cancellations (ns binding) that occur during navigation
+      // Silently ignore abort errors (user navigated away, DNS cancelled, or request was cancelled)
       const message = err?.message?.toLowerCase() || '';
       const isAbortError = (
-        err?.code === 'ECONNABORTED' || 
-        err?.name === 'AbortError' || 
+        err?.name === 'AbortError' ||
+        err?.code === 'ECONNABORTED' ||
+        err?.code === 'ERR_CANCELED' ||
+        message.includes('abort') ||
         message.includes('cancel') ||
-        message.includes('ns binding') ||
-        message.includes('aborted')
+        message.includes('ns binding')
       );
       if (!isAbortError) {
         console.error('Failed to fetch analytics data:', err);
         setError('Failed to load analytics data. Please try again.');
       }
-      // IMPORTANT: Keep existing data if available - do not wipe state on abort errors
+      // IMPORTANT: Keep existing data on abort - never wipe state
     } finally {
       setLoading(false);
     }

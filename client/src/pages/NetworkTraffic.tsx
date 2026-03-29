@@ -88,13 +88,21 @@ const NetworkTraffic: React.FC = () => {
         setBandwidthData(bandwidthChart);
       }
     } catch (err: any) {
-      // Silently ignore abort errors (user navigated away)
-      const isAbortError = err?.code === 'ECONNABORTED' || err?.name === 'AbortError' || err?.message?.includes('cancel');
+      // Silently ignore abort errors and DNS cancellations (user navigated away or DNS lookup cancelled)
+      const message = err?.message?.toLowerCase() || '';
+      const isAbortError = (
+        err?.code === 'ECONNABORTED' || 
+        err?.code === 'ERR_CANCELED' ||
+        err?.name === 'AbortError' || 
+        message.includes('cancel') ||
+        message.includes('abort') ||
+        message.includes('ns binding')
+      );
       if (!isAbortError) {
         console.error('Failed to fetch packets:', err);
         setError('Failed to load packets');
       }
-      // Keep existing data if available
+      // Keep existing data if available - do not wipe packets on abort errors
     } finally {
       setLoading(false);
     }

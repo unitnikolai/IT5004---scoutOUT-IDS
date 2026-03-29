@@ -31,10 +31,11 @@ const isAbortError = (error: any): boolean => {
   const message = error?.message?.toLowerCase() || '';
   return (
     error?.code === 'ECONNABORTED' ||
+    error?.code === 'ERR_CANCELED' ||
     error?.name === 'AbortError' ||
+    message.includes('abort') ||
     message.includes('cancel') ||
-    message.includes('ns binding') ||
-    message.includes('aborted')
+    message.includes('ns binding')
   );
 };
 

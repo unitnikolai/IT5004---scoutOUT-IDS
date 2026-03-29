@@ -36,18 +36,21 @@ const Dashboard: React.FC = () => {
       setThreatActivity(data.activity);
       setLastUpdated(new Date());
     } catch (err: any) {
-      // Silently ignore abort errors (user navigated away or request was cancelled)
+      // Silently ignore abort errors (user navigated away, DNS cancelled, or request was cancelled)
       const message = err?.message?.toLowerCase() || '';
-      const isAbortError = err?.code === 'ECONNABORTED' || 
-                          err?.name === 'AbortError' || 
-                          message.includes('cancel') ||
-                          message.includes('ns binding') ||
-                          message.includes('aborted');
+      const isAbortError = (
+        err?.name === 'AbortError' ||
+        err?.code === 'ECONNABORTED' ||
+        err?.code === 'ERR_CANCELED' ||
+        message.includes('abort') ||
+        message.includes('cancel') ||
+        message.includes('ns binding')
+      );
       if (!isAbortError) {
         console.error('Failed to fetch dashboard data:', err);
         setError('Failed to load dashboard data. Please try again.');
       }
-      // Keep existing data if available
+      // IMPORTANT: Keep existing data on abort - never wipe state
     } finally {
       setLoading(false);
     }

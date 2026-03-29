@@ -38,11 +38,15 @@ app.get('/api/health', (req, res) => {
 
 // Batch packets endpoint - efficient for high-volume packet streams
 app.post('/api/packets/', batchLimiter, (req, res) => {
-  // Handle client disconnect during processing
+  // Track whether client has disconnected
+  let clientDisconnected = false;
+  
   const onClientDisconnect = () => {
-    console.warn(`[Batch Receiver] Client disconnected while processing batch upload`);
+    clientDisconnected = true;
+    console.warn(`[Batch Receiver] Client disconnected during processing`);
   };
   
+  // Listen for client disconnect
   req.on('close', onClientDisconnect);
   
   try {
@@ -58,21 +62,27 @@ app.post('/api/packets/', batchLimiter, (req, res) => {
     
     console.log(`[Batch Receiver] Added ${added}/${packets.length} packets. Total in store: ${require('./packetStore.js').getPackets().length}`);
     
-    // Only send response if client is still connected
-    if (!res.headersSent) {
+    // IMPORTANT: Only attempt to write response if:
+    // 1. Headers haven't been sent yet
+    // 2. Client hasn't disconnected
+    // 3. Response socket is still writable
+    if (!clientDisconnected && !res.headersSent && res.writable) {
       res.status(201).json({ 
         status: 'ok',
         packetsAdded: added,
         totalRequested: packets.length
       });
+    } else if (clientDisconnected) {
+      console.debug(`[Batch Receiver] Skipped response - client already disconnected`);
     }
   } catch (error) {
-    console.error('[Batch Receiver] Error:', error);
-    if (!res.headersSent) {
+    console.error('[Batch Receiver] Error:', error.message);
+    // Only send error response if socket is still available
+    if (!clientDisconnected && !res.headersSent && res.writable) {
       res.status(500).json({ error: 'Failed to process packet batch' });
     }
   } finally {
-    // Clean up listener
+    // Clean up listeners to prevent memory leaks
     req.removeListener('close', onClientDisconnect);
   }
 });
@@ -746,6 +756,17 @@ app.get('/api/dashboard/activity', (req, res) => {
 
 // Add request cleanup handler - detects client disconnects and orphaned connections
 app.use((req, res, next) => {
+  // Suppress EPIPE errors (client disconnected during response write)
+  // These are expected and not errors we can fix
+  res.on('error', (err) => {
+    if (err.code === 'EPIPE' || err.code === 'ECONNRESET') {
+      // Client disconnected - this is normal, don't log as error
+      return;
+    }
+    // Log other errors
+    console.error(`[Response Error] ${err.code || 'UNKNOWN'}:`, err.message);
+  });
+  
   // Track request completion
   res.on('finish', () => {
     // Request completed normally
@@ -754,12 +775,14 @@ app.use((req, res, next) => {
   // Clean up if client disconnects or abandons request
   req.on('close', () => {
     if (!res.headersSent) {
-      console.warn(`[Request Cleanup] Client disconnected before response sent for ${req.method} ${req.path}`);
+      console.debug(`[Request Cleanup] Client disconnected before response sent for ${req.method} ${req.path}`);
     }
   });
   
   req.on('error', (err) => {
-    console.error(`[Request Error] ${req.method} ${req.path}:`, err.message);
+    if (err.code !== 'EPIPE' && err.code !== 'ECONNRESET') {
+      console.error(`[Request Error] ${req.method} ${req.path}:`, err.message);
+    }
   });
   
   next();
