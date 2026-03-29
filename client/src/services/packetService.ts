@@ -23,36 +23,93 @@ const api = axios.create({
   timeout: 10000,
 });
 
+// Request cancellation
+let abortController = new AbortController();
+
+const isAbortError = (error: any): boolean => {
+  return (
+    error?.code === 'ECONNABORTED' ||
+    error?.name === 'AbortError' ||
+    error?.message?.includes('cancel')
+  );
+};
+
 export const packetService = {
+  // Cancel all pending requests
+  cancelRequests(): void {
+    abortController.abort();
+    abortController = new AbortController();
+  },
+
   // Get health status
   async getHealth(): Promise<{ status: string; timestamp: string }> {
-    const response = await api.get('/health');
-    return response.data;
+    try {
+      const response = await api.get('/health', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error: any) {
+      if (isAbortError(error)) {
+        throw error; // Re-throw abort errors without logging
+      }
+      console.error('Error checking health:', error);
+      throw error;
+    }
   },
 
   // Get packets with optional filters
   async getPackets(filters: ApiFilters = {}): Promise<PacketResponse> {
-    const params = new URLSearchParams();
-    
-    if (filters.limit) params.append('limit', filters.limit.toString());
-    if (filters.protocol) params.append('protocol', filters.protocol);
-    if (filters.sourceIP) params.append('sourceIP', filters.sourceIP);
-    if (filters.destIP) params.append('destIP', filters.destIP);
-    
-    const response = await api.get(`/packets?${params.toString()}`);
-    return response.data;
+    try {
+      const params = new URLSearchParams();
+      
+      if (filters.limit) params.append('limit', filters.limit.toString());
+      if (filters.protocol) params.append('protocol', filters.protocol);
+      if (filters.sourceIP) params.append('sourceIP', filters.sourceIP);
+      if (filters.destIP) params.append('destIP', filters.destIP);
+      
+      const response = await api.get(`/packets?${params.toString()}`, {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error: any) {
+      if (isAbortError(error)) {
+        throw error; // Re-throw abort errors without logging
+      }
+      console.error('Error fetching packets:', error);
+      throw error;
+    }
   },
 
   // Get single packet by ID
   async getPacketById(id: number): Promise<PacketData> {
-    const response = await api.get(`/packets/${id}`);
-    return response.data;
+    try {
+      const response = await api.get(`/packets/${id}`, {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error: any) {
+      if (isAbortError(error)) {
+        throw error; // Re-throw abort errors without logging
+      }
+      console.error('Error fetching packet:', error);
+      throw error;
+    }
   },
 
   // Get statistics
   async getStats(): Promise<StatsData> {
-    const response = await api.get('/stats');
-    return response.data;
+    try {
+      const response = await api.get('/stats', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error: any) {
+      if (isAbortError(error)) {
+        throw error; // Re-throw abort errors without logging
+      }
+      console.error('Error fetching stats:', error);
+      throw error;
+    }
   },
 };
 

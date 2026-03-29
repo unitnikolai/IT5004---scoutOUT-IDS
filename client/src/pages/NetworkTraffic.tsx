@@ -87,9 +87,14 @@ const NetworkTraffic: React.FC = () => {
         
         setBandwidthData(bandwidthChart);
       }
-    } catch (err) {
-      console.error('Failed to fetch packets:', err);
-      setError('Failed to load packets');
+    } catch (err: any) {
+      // Silently ignore abort errors (user navigated away)
+      const isAbortError = err?.code === 'ECONNABORTED' || err?.name === 'AbortError' || err?.message?.includes('cancel');
+      if (!isAbortError) {
+        console.error('Failed to fetch packets:', err);
+        setError('Failed to load packets');
+      }
+      // Keep existing data if available
     } finally {
       setLoading(false);
     }
@@ -105,7 +110,11 @@ const NetworkTraffic: React.FC = () => {
       }
     }, 5000);
     
-    return () => clearInterval(interval);
+    // Cleanup: cancel pending requests when component unmounts
+    return () => {
+      clearInterval(interval);
+      packetService.cancelRequests?.();
+    };
   }, [isCapturing]);
 
   const toggleCapture = () => {

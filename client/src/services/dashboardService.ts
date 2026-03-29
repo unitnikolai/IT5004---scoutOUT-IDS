@@ -1,4 +1,4 @@
-import axios from 'axios';
+import axios, { AxiosError } from 'axios';
 
 // Dynamically construct API URL based on current frontend location
 // If REACT_APP_API_URL is set (Docker), use it. Otherwise detect from window location
@@ -20,10 +20,18 @@ const getApiUrl = (): string => {
 const API_BASE_URL = getApiUrl();
 console.log('[dashboardService] API URL:', API_BASE_URL);
 
+// AbortController for canceling requests
+let abortController = new AbortController();
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 10000,
 });
+
+// Helper to safely handle AbortError
+const isAbortError = (error: any): boolean => {
+  return axios.isCancel(error) || error?.name === 'AbortError' || error?.code === 'ECONNABORTED';
+};
 
 export interface DashboardStats {
   totalDevices: number;
@@ -72,35 +80,86 @@ export interface DashboardResponse<T> {
 }
 
 export const dashboardService = {
+  // Cancel all pending requests
+  cancelRequests(): void {
+    abortController.abort();
+    abortController = new AbortController();
+  },
+
   // Get dashboard statistics
   async getStats(): Promise<DashboardResponse<DashboardStats>> {
-    const response = await api.get('/dashboard/stats');
-    console.log('[dashboardService.getStats] Response:', response.data);
-    return response.data;
+    try {
+      const response = await api.get('/dashboard/stats', {
+        signal: abortController.signal
+      });
+      console.log('[dashboardService.getStats] Response:', response.data);
+      return response.data;
+    } catch (error) {
+      if (!isAbortError(error)) {
+        console.error('[dashboardService.getStats] Error:', error);
+      }
+      throw error;
+    }
   },
 
   // Get recent alerts
   async getAlerts(): Promise<DashboardResponse<Alert[]>> {
-    const response = await api.get('/dashboard/alerts');
-    return response.data;
+    try {
+      const response = await api.get('/dashboard/alerts', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error) {
+      if (!isAbortError(error)) {
+        console.error('[dashboardService.getAlerts] Error:', error);
+      }
+      throw error;
+    }
   },
 
   // Get new devices
   async getDevices(): Promise<DashboardResponse<NewDevice[]>> {
-    const response = await api.get('/dashboard/devices');
-    return response.data;
+    try {
+      const response = await api.get('/dashboard/devices', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error) {
+      if (!isAbortError(error)) {
+        console.error('[dashboardService.getDevices] Error:', error);
+      }
+      throw error;
+    }
   },
 
   // Get top threats
   async getThreats(): Promise<DashboardResponse<Threat[]>> {
-    const response = await api.get('/dashboard/threats');
-    return response.data;
+    try {
+      const response = await api.get('/dashboard/threats', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error) {
+      if (!isAbortError(error)) {
+        console.error('[dashboardService.getThreats] Error:', error);
+      }
+      throw error;
+    }
   },
 
   // Get threat activity timeline
   async getActivity(): Promise<DashboardResponse<ThreatActivity[]>> {
-    const response = await api.get('/dashboard/activity');
-    return response.data;
+    try {
+      const response = await api.get('/dashboard/activity', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error) {
+      if (!isAbortError(error)) {
+        console.error('[dashboardService.getActivity] Error:', error);
+      }
+      throw error;
+    }
   },
 
   // Get all dashboard data at once
@@ -112,22 +171,29 @@ export const dashboardService = {
     activity: ThreatActivity[];
     timestamp: string;
   }> {
-    const [statsResponse, alertsResponse, devicesResponse, threatsResponse, activityResponse] = await Promise.all([
-      dashboardService.getStats(),
-      dashboardService.getAlerts(),
-      dashboardService.getDevices(),
-      dashboardService.getThreats(),
-      dashboardService.getActivity()
-    ]);
+    try {
+      const [statsResponse, alertsResponse, devicesResponse, threatsResponse, activityResponse] = await Promise.all([
+        dashboardService.getStats(),
+        dashboardService.getAlerts(),
+        dashboardService.getDevices(),
+        dashboardService.getThreats(),
+        dashboardService.getActivity()
+      ]);
 
-    return {
-      stats: statsResponse.stats!,
-      alerts: alertsResponse.alerts!,
-      devices: devicesResponse.devices!,
-      threats: threatsResponse.threats!,
-      activity: activityResponse.activity!,
-      timestamp: new Date().toISOString()
-    };
+      return {
+        stats: statsResponse.stats!,
+        alerts: alertsResponse.alerts!,
+        devices: devicesResponse.devices!,
+        threats: threatsResponse.threats!,
+        activity: activityResponse.activity!,
+        timestamp: new Date().toISOString()
+      };
+    } catch (error) {
+      if (!isAbortError(error)) {
+        console.error('[dashboardService.getAllData] Error:', error);
+      }
+      throw error;
+    }
   },
 };
 

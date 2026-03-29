@@ -2,7 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { FiSmartphone, FiMonitor, FiWifi, FiCoffee } from 'react-icons/fi';
 import './Devices.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://172.20.0.31:5050/api';
+const getApiUrl = (): string => {
+  // Use environment variable if set (Docker production)
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Otherwise, dynamically detect based on frontend URL
+  const protocol = window.location.protocol; // http: or https:
+  const hostname = window.location.hostname; // localhost, 192.168.x.x, etc.
+  const port = ':5050'; // Backend API port
+  const path = '/api';
+  
+  return `${protocol}//${hostname}${port}${path}`;
+};
+
+const API_BASE_URL = getApiUrl();
 
 interface Device {
   id: number;
@@ -25,17 +40,26 @@ const Devices: React.FC = () => {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
 
   useEffect(() => {
+    const abortController = new AbortController();
+
     const fetchDevices = async () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`${API_BASE_URL}/devices/all`);
+        const response = await fetch(`${API_BASE_URL}/devices/all`, {
+          signal: abortController.signal
+        });
         if (!response.ok) throw new Error('Failed to fetch devices');
         const data = await response.json();
         setDevices(data.devices || []);
-      } catch (err) {
-        console.error('Error fetching devices:', err);
-        setError('Failed to load devices');
+      } catch (err: any) {
+        // Silently ignore abort errors (user navigated away)
+        const isAbortError = err?.name === 'AbortError' || err?.message?.includes('abort');
+        if (!isAbortError) {
+          console.error('Error fetching devices:', err);
+          setError('Failed to load devices');
+        }
+        // Keep existing data if available
       } finally {
         setLoading(false);
       }
@@ -45,7 +69,12 @@ const Devices: React.FC = () => {
     
     // Refresh every 10 seconds
     const interval = setInterval(fetchDevices, 10000);
-    return () => clearInterval(interval);
+    
+    // Cleanup: cancel pending requests when component unmounts
+    return () => {
+      clearInterval(interval);
+      abortController.abort();
+    };
   }, []);
 
   const getDeviceIcon = (type: string) => {

@@ -22,6 +22,17 @@ const api = axios.create({
   timeout: 10000,
 });
 
+// Request cancellation
+let abortController = new AbortController();
+
+const isAbortError = (error: any): boolean => {
+  return (
+    error?.code === 'ECONNABORTED' ||
+    error?.name === 'AbortError' ||
+    error?.message?.includes('cancel')
+  );
+};
+
 export interface LogEntry {
   id: number;
   timestamp: string;
@@ -49,28 +60,74 @@ export interface AnalyticsResponse<T> {
 }
 
 export const analyticsService = {
+  // Cancel all pending requests
+  cancelRequests(): void {
+    abortController.abort();
+    abortController = new AbortController();
+  },
+
   // Get activity logs
   async getLogs(): Promise<AnalyticsResponse<LogEntry[]>> {
-    const response = await api.get('/analytics/logs');
-    return response.data;
+    try {
+      const response = await api.get('/analytics/logs', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error: any) {
+      if (isAbortError(error)) {
+        throw error; // Re-throw abort errors without logging
+      }
+      console.error('Error fetching logs:', error);
+      throw error;
+    }
   },
 
   // Get threats timeline data
   async getThreatsTimeline(): Promise<AnalyticsResponse<TimeSeriesData[]>> {
-    const response = await api.get('/analytics/threats-timeline');
-    return response.data;
+    try {
+      const response = await api.get('/analytics/threats-timeline', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error: any) {
+      if (isAbortError(error)) {
+        throw error; // Re-throw abort errors without logging
+      }
+      console.error('Error fetching threats timeline:', error);
+      throw error;
+    }
   },
 
   // Get device activity timeline data
   async getDeviceActivity(): Promise<AnalyticsResponse<TimeSeriesData[]>> {
-    const response = await api.get('/analytics/device-activity');
-    return response.data;
+    try {
+      const response = await api.get('/analytics/device-activity', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error: any) {
+      if (isAbortError(error)) {
+        throw error; // Re-throw abort errors without logging
+      }
+      console.error('Error fetching device activity:', error);
+      throw error;
+    }
   },
 
   // Get top devices data
   async getTopDevices(): Promise<AnalyticsResponse<TopDevice[]>> {
-    const response = await api.get('/analytics/top-devices');
-    return response.data;
+    try {
+      const response = await api.get('/analytics/top-devices', {
+        signal: abortController.signal
+      });
+      return response.data;
+    } catch (error: any) {
+      if (isAbortError(error)) {
+        throw error; // Re-throw abort errors without logging
+      }
+      console.error('Error fetching top devices:', error);
+      throw error;
+    }
   },
 };
 

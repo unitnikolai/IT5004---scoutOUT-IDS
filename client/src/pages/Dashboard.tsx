@@ -35,9 +35,13 @@ const Dashboard: React.FC = () => {
       setTopThreats(data.threats);
       setThreatActivity(data.activity);
       setLastUpdated(new Date());
-    } catch (err) {
-      console.error('Failed to fetch dashboard data:', err);
-      setError('Failed to load dashboard data. Please try again.');
+    } catch (err: any) {
+      // Silently ignore abort errors (user navigated away)
+      const isAbortError = err?.code === 'ECONNABORTED' || err?.name === 'AbortError' || err?.message?.includes('cancel');
+      if (!isAbortError) {
+        console.error('Failed to fetch dashboard data:', err);
+        setError('Failed to load dashboard data. Please try again.');
+      }
       // Keep existing data if available
     } finally {
       setLoading(false);
@@ -48,7 +52,12 @@ const Dashboard: React.FC = () => {
     fetchDashboardData();
     // Auto-refresh every 5 seconds to pick up new packets
     const interval = setInterval(fetchDashboardData, 5000);
-    return () => clearInterval(interval);
+    
+    // Cleanup: cancel pending requests and clear interval when component unmounts
+    return () => {
+      clearInterval(interval);
+      dashboardService.cancelRequests(); // Cancel any pending API calls
+    };
   }, []);
 
   const formatTimestamp = (timestamp: string) => {

@@ -30,9 +30,13 @@ const Analytics: React.FC = () => {
       setDeviceActivity(devicesResponse.data || []);
       setMostActiveDevices(topDevicesResponse.data || []);
       setLastUpdated(new Date());
-    } catch (err) {
-      console.error('Failed to fetch analytics data:', err);
-      setError('Failed to load analytics data. Please try again.');
+    } catch (err: any) {
+      // Silently ignore abort errors (user navigated away)
+      const isAbortError = err?.code === 'ECONNABORTED' || err?.name === 'AbortError' || err?.message?.includes('cancel');
+      if (!isAbortError) {
+        console.error('Failed to fetch analytics data:', err);
+        setError('Failed to load analytics data. Please try again.');
+      }
       // Keep existing data if available
     } finally {
       setLoading(false);
@@ -41,6 +45,10 @@ const Analytics: React.FC = () => {
 
   useEffect(() => {
     fetchAnalyticsData();
+    // Cleanup: cancel pending requests when component unmounts
+    return () => {
+      analyticsService.cancelRequests?.();
+    };
   }, []);
 
   const exportLogs = (format: 'csv' | 'pdf') => {

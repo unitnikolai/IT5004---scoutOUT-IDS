@@ -2,7 +2,22 @@ import React, { useState, useEffect } from 'react';
 import { FiAlertTriangle } from 'react-icons/fi';
 import './Threats.css';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://172.20.0.31:5050/api';
+const getApiUrl = (): string => {
+  // Use environment variable if set (Docker production)
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL;
+  }
+  
+  // Otherwise, dynamically detect based on frontend URL
+  const protocol = window.location.protocol; // http: or https:
+  const hostname = window.location.hostname; // localhost, 192.168.x.x, etc.
+  const port = ':5050'; // Backend API port
+  const path = '/api';
+  
+  return `${protocol}//${hostname}${port}${path}`;
+};
+
+const API_BASE_URL = getApiUrl();
 
 interface Threat {
   id: number;
@@ -23,17 +38,26 @@ const Threats: React.FC = () => {
   const [filterSeverity, setFilterSeverity] = useState('all');
 
   useEffect(() => {
+    const abortController = new AbortController();
+
     const fetchThreats = async () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`${API_BASE_URL}/threats/enhanced`);
+        const response = await fetch(`${API_BASE_URL}/threats/enhanced`, {
+          signal: abortController.signal
+        });
         if (!response.ok) throw new Error('Failed to fetch threats');
         const data = await response.json();
         setThreats(data.threats || []);
-      } catch (err) {
-        console.error('Error fetching threats:', err);
-        setError('Failed to load threats');
+      } catch (err: any) {
+        // Silently ignore abort errors (user navigated away)
+        const isAbortError = err?.name === 'AbortError' || err?.message?.includes('abort');
+        if (!isAbortError) {
+          console.error('Error fetching threats:', err);
+          setError('Failed to load threats');
+        }
+        // Keep existing data if available
       } finally {
         setLoading(false);
       }
@@ -43,7 +67,12 @@ const Threats: React.FC = () => {
     
     // Refresh every 10 seconds
     const interval = setInterval(fetchThreats, 10000);
-    return () => clearInterval(interval);
+    
+    // Cleanup: cancel pending requests when component unmounts
+    return () => {
+      clearInterval(interval);
+      abortController.abort();
+    };
   }, []);
 
   const getSeverityColor = (severity: string) => {
