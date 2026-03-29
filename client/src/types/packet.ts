@@ -9,6 +9,7 @@ export interface PacketData {
   length: number;
   flags?: string | null;
   payload: string;
+  hostname?: string;
 }
 
 export interface PacketResponse {

@@ -2,32 +2,58 @@ const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { addPacket, getPackets } = require('./packetStore.js');
+const { isPrivateIP, checkPublicIP } = require('./virustotal.js');
 const app = express();
 const PORT = process.env.PORT || 5050;
-
 // Middleware
 app.use(cors());
 app.use(express.json());
 
-// Rate limiting
+require('dotenv').config();
+
+const VT_API_KEY = process.env.VIRUSTOTAL_API_KEY;
+const vtCache = new Map(); 
+
+
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
+// Rate limiting - separate limiters for different endpoints
+
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // limit each IP to 100 requests per windowMs
+  max: 1000 // limit each IP to 1000 requests per windowMs
 });
+
+const batchLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 500 // higher limit for batch operations (each batch can contain many packets)
+});
+
 app.use('/api/', limiter);
 
-// Mock packet capture data
-
-// Routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-app.post('/api/packets', (req, res) => {
-  addPacket(req.body);
-  res.status(201).json({ status: 'ok'})
-}
-)
+
+
+// Batch packets endpoint - efficient for high-volume packet streams
+app.post('/api/packets/', batchLimiter, (req, res) => {
+  const packets = Array.isArray(req.body) ? req.body : [req.body];
+  
+  let added = 0;
+  packets.forEach(packet => {
+    if (packet && packet.timestamp) {
+      addPacket(packet);
+      added++;
+    }
+  });
+    console.log(`[Batch Receiver] Added ${added}/${packets.length} packets. Total in store: ${require('./packetStore.js').getPackets().length}`);
+    res.status(201).json({ 
+    status: 'ok',
+    packetsAdded: added,
+    totalRequested: packets.length
+  });
+});
 
 app.get('/api/packets', (req, res) => {
   const { limit = 50, protocol, sourceIP, destIP } = req.query;
@@ -97,16 +123,18 @@ app.get('/api/stats', (req, res) => {
 // Analytics functions
 const analyzePacketsForThreats = (packets) => {
   const suspiciousPorts = [22, 23, 135, 139, 445, 1433, 3389]; // Common attack vectors
-  const suspiciousDomains = ['malware.example.com', 'phishing-site.com', 'botnet.example.org'];
   const threats = [];
 
   packets.forEach(packet => {
+    // Skip packets without required fields
+    if (!packet.sourceIP || !packet.timestamp) return;
+    
     let threatType = '';
     let severity = 'low';
     let message = '';
 
     // Check for suspicious ports
-    if (suspiciousPorts.includes(packet.destPort)) {
+    if (packet.destPort && suspiciousPorts.includes(packet.destPort)) {
       threatType = 'port-scan';
       severity = packet.destPort === 22 || packet.destPort === 3389 ? 'high' : 'medium';
       message = `Suspicious connection to port ${packet.destPort}`;
@@ -122,6 +150,7 @@ const analyzePacketsForThreats = (packets) => {
     // Check for rapid connections from same IP
     const sameSourcePackets = packets.filter(p => 
       p.sourceIP === packet.sourceIP && 
+      p.timestamp &&
       Math.abs(new Date(p.timestamp) - new Date(packet.timestamp)) < 1000
     );
     if (sameSourcePackets.length > 10) {
@@ -138,7 +167,7 @@ const analyzePacketsForThreats = (packets) => {
         message: message,
         details: `${severity.toUpperCase()} severity - ${threatType}`,
         sourceIP: packet.sourceIP,
-        destIP: packet.destIP,
+        destIP: packet.destIP || 'unknown',
         severity
       });
     }
@@ -151,11 +180,14 @@ const analyzeDeviceActivity = (packets) => {
   const deviceMap = new Map();
   
   packets.forEach(packet => {
+    // Skip packets without required sourceIP
+    if (!packet.sourceIP) return;
+    
     const deviceKey = packet.sourceIP;
     if (!deviceMap.has(deviceKey)) {
       deviceMap.set(deviceKey, {
         ip: packet.sourceIP,
-        lastSeen: packet.timestamp,
+        lastSeen: packet.timestamp || new Date().toISOString(),
         packetCount: 0,
         protocols: new Set(),
         totalBytes: 0
@@ -164,10 +196,10 @@ const analyzeDeviceActivity = (packets) => {
     
     const device = deviceMap.get(deviceKey);
     device.packetCount++;
-    device.totalBytes += packet.length;
-    device.protocols.add(packet.protocol);
+    device.totalBytes += packet.length || 0;
+    if (packet.protocol) device.protocols.add(packet.protocol);
     
-    if (new Date(packet.timestamp) > new Date(device.lastSeen)) {
+    if (packet.timestamp && new Date(packet.timestamp) > new Date(device.lastSeen)) {
       device.lastSeen = packet.timestamp;
     }
   });
@@ -261,6 +293,80 @@ const generateTimeSeriesData = (packets, groupBy = 'hour') => {
   })).sort();
 };
 
+// VirusTotal API endpoint for threat detection
+app.get('/api/virustotal/ip/:ip', async (req, res) => {
+  try {
+    const { ip } = req.params;
+    
+    // Validate IP format
+    if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(ip)) {
+      return res.status(400).json({ error: 'Invalid IP format' });
+    }
+    
+    const report = await checkPublicIP(ip);  
+    res.json(report);
+  } catch (error) {
+    console.error('VirusTotal check error:', error);
+    res.status(500).json({ error: 'Failed to check IP against VirusTotal' });
+  }
+});
+
+// Enhanced threat detection with VirusTotal checks
+app.get('/api/threats/enhanced', async (req, res) => {
+  try {
+    const packets = getPackets();
+    const threats = [];
+    const checkedIPs = new Set();
+
+    // First get threats from packet analysis
+    const basicThreats = analyzePacketsForThreats(packets);
+    threats.push(...basicThreats);
+
+    // Then check suspicious IPs against VirusTotal
+    const suspiciousIPs = new Set();
+    packets.forEach(packet => {
+      // Collect IPs from suspicious connections
+      if ([22, 23, 135, 139, 445, 1433, 3389].includes(packet.destPort)) {
+        suspiciousIPs.add(packet.destIP);
+      }
+    });
+
+    // Check each suspicious IP with VirusTotal (limit to avoid API rate limits)
+    const ipsToCheck = Array.from(suspiciousIPs).slice(0, 5);
+    for (const ip of ipsToCheck) {
+      if (!isPrivateIP(ip) && !checkedIPs.has(ip)) {
+        checkedIPs.add(ip);
+        try {
+          const vtReport = await checkPublicIP(ip);
+          if (vtReport && vtReport.stats && (vtReport.stats.malicious > 0 || vtReport.stats.suspicious > 0)) {
+            threats.push({
+              id: Date.now() + Math.random(),
+              timestamp: new Date().toISOString(),
+              type: 'virustotal',
+              message: `VirusTotal detection: IP ${ip} flagged (${vtReport.stats.malicious} malicious, ${vtReport.stats.suspicious} suspicious)`,
+              details: `VirusTotal report: ${vtReport.stats.malicious} malicious, ${vtReport.stats.suspicious} suspicious detections`,
+              sourceIP: ip,
+              destIP: ip,
+              severity: vtReport.stats.malicious > 0 ? 'critical' : 'high'
+            });
+          }
+        } catch (e) {
+          console.debug(`Failed to check IP ${ip} with VirusTotal:`, e.message);
+        }
+      }
+    }
+
+    res.json({ 
+      threats,
+      totalThreats: threats.length,
+      timestamp: new Date().toISOString() 
+    });
+  } catch (error) {
+    console.error('Enhanced threat analysis error:', error);
+    res.status(500).json({ error: 'Failed to analyze threats' });
+  }
+});
+
 // Analytics API endpoints
 app.get('/api/analytics/logs', (req, res) => {
   try {
@@ -316,6 +422,68 @@ app.get('/api/analytics/top-devices', (req, res) => {
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate top devices data' });
+  }
+});
+
+// Devices API endpoint - Extract real devices from packet data with hostname resolution
+app.get('/api/devices/all', (req, res) => {
+  try {
+    const packets = getPackets();
+    const devices = analyzeDeviceActivity(packets);
+    
+    // Build hostname map from packets
+    const hostnameMap = new Map();
+    packets.forEach(packet => {
+      if (packet.sourceIP && packet.hostname) {
+        if (!hostnameMap.has(packet.sourceIP)) {
+          hostnameMap.set(packet.sourceIP, packet.hostname);
+        }
+      }
+    });
+
+    // Convert to full device objects
+    const fullDevices = devices.map((device, index) => {
+      const hostname = hostnameMap.get(device.ip) || `Device-${device.ip.split('.').pop()}`;
+      const deviceTypes = ['Mobile', 'Computer', 'IoT', 'Smart TV', 'Tablet', 'Unknown'];
+      
+      // Simple device type detection based on port usage
+      let type = 'Unknown';
+      const portSet = new Set();
+      packets.forEach(p => {
+        if (p.sourceIP === device.ip) {
+          portSet.add(p.sourcePort);
+        }
+      });
+      
+      if (portSet.has(5353) || portSet.has(68)) type = 'IoT'; // mDNS or DHCP
+      else if (portSet.has(22) || portSet.has(3389)) type = 'Computer'; // SSH or RDP
+      else if (device.packetCount > 1000) type = 'Computer';
+      else if (device.packetCount < 50) type = 'IoT';
+      else type = deviceTypes[Math.floor(Math.random() * deviceTypes.length)];
+
+      return {
+        id: index + 1,
+        name: hostname,
+        ip: device.ip,
+        mac: `${device.ip.split('.').slice(2).join('-')}:${(Math.random() * 256 | 0).toString(16)}`, // Simulated MAC
+        vendor: 'Network Device',
+        type: type,
+        firstSeen: device.lastSeen, // Using lastSeen as approximation; could track first packet per IP
+        lastSeen: device.lastSeen,
+        trust: 'trusted',
+        assignedTo: 'Guest',
+        bandwidth: Math.round((device.totalBytes / 1024 / 1024) / 10) // Convert bytes to Mbps estimate
+      };
+    });
+
+    res.json({ 
+      devices: fullDevices,
+      total: fullDevices.length,
+      timestamp: new Date().toISOString() 
+    });
+  } catch (error) {
+    console.error('Failed to fetch devices:', error);
+    res.status(500).json({ error: 'Failed to fetch devices' });
   }
 });
 
@@ -382,13 +550,16 @@ const generateNewDevices = (packets) => {
   const devices = analyzeDeviceActivity(packets);
   const deviceTypes = ['Mobile', 'Computer', 'IoT', 'Smart TV', 'Tablet'];
   
-  return devices.slice(0, 3).map((device, index) => ({
-    id: index + 1,
-    name: `Device-${device.ip.split('.').pop()}`,
-    ip: device.ip,
-    joinedAt: device.lastSeen,
-    type: deviceTypes[index % deviceTypes.length]
-  }));
+  return devices
+    .filter(device => device && device.ip) // Filter out invalid devices
+    .slice(0, 3)
+    .map((device, index) => ({
+      id: index + 1,
+      name: `Device-${device.ip.split('.').pop() || 'unknown'}`,
+      ip: device.ip,
+      joinedAt: device.lastSeen,
+      type: deviceTypes[index % deviceTypes.length]
+    }));
 };
 
 const generateTopThreats = (packets) => {
@@ -452,9 +623,15 @@ const generateThreatActivity = (packets) => {
 app.get('/api/dashboard/stats', (req, res) => {
   try {
     const packets = getPackets();
+    console.log(`[Dashboard Stats] Fetched ${packets.length} packets`);
+    if (packets.length > 0) {
+      console.log(`[Dashboard Stats] Sample packet:`, JSON.stringify(packets[0], null, 2).substring(0, 200));
+    }
     const stats = generateDashboardStats(packets);
+    console.log(`[Dashboard Stats] Returning:`, JSON.stringify({stats, timestamp: new Date().toISOString()}).substring(0, 300));
     res.json({ stats, timestamp: new Date().toISOString() });
   } catch (error) {
+    console.error('[Dashboard Stats] Error:', error);
     res.status(500).json({ error: 'Failed to generate dashboard stats' });
   }
 });
@@ -463,6 +640,7 @@ app.get('/api/dashboard/alerts', (req, res) => {
   try {
     const packets = getPackets();
     const alerts = generateRecentAlerts(packets);
+    console.log(`[Dashboard Alerts] Returning ${alerts.length} alerts`);
     res.json({ alerts, timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate recent alerts' });
@@ -473,6 +651,7 @@ app.get('/api/dashboard/devices', (req, res) => {
   try {
     const packets = getPackets();
     const devices = generateNewDevices(packets);
+    console.log(`[Dashboard Devices] Returning ${devices.length} devices`);
     res.json({ devices, timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate new devices data' });
@@ -483,6 +662,7 @@ app.get('/api/dashboard/threats', (req, res) => {
   try {
     const packets = getPackets();
     const threats = generateTopThreats(packets);
+    console.log(`[Dashboard Threats] Returning ${threats.length} threats`);
     res.json({ threats, timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate top threats data' });
@@ -493,6 +673,7 @@ app.get('/api/dashboard/activity', (req, res) => {
   try {
     const packets = getPackets();
     const activity = generateThreatActivity(packets);
+    console.log(`[Dashboard Activity] Returning ${activity.length} activity entries`);
     res.json({ activity, timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate threat activity data' });
@@ -510,7 +691,7 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0',() => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Packets API: http://localhost:${PORT}/api/packets`);

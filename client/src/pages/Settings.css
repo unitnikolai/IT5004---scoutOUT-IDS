@@ -12,10 +12,11 @@
 }
 
 .settings-card {
-  background: white;
+  background: var(--card-bg);
   border-radius: 12px;
   padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  box-shadow: var(--shadow);
+  transition: background-color 0.3s ease;
 }
 
 .card-header {
@@ -28,8 +29,9 @@
 .card-header h3 {
   margin: 0;
   font-size: 18px;
-  color: #333;
+  color: var(--text-primary);
   font-weight: 600;
+  transition: color 0.3s ease;
 }
 
 .card-content {
@@ -47,7 +49,8 @@
 .form-group label {
   font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s ease;
 }
 
 .form-group input[type="text"],
@@ -56,10 +59,12 @@
 .form-group input[type="number"],
 .form-group select {
   padding: 10px;
-  border: 2px solid #ddd;
+  border: 2px solid var(--input-border);
   border-radius: 8px;
   font-size: 14px;
-  transition: border-color 0.2s;
+  background-color: var(--input-bg);
+  color: var(--text-primary);
+  transition: border-color 0.2s, background-color 0.3s ease, color 0.3s ease;
 }
 
 .form-group input:focus,
@@ -74,6 +79,8 @@
   gap: 10px;
   cursor: pointer;
   font-weight: normal !important;
+  color: var(--text-primary);
+  transition: color 0.3s ease;
 }
 
 .checkbox-label input[type="checkbox"] {
@@ -84,8 +91,9 @@
 
 .help-text {
   font-size: 12px;
-  color: #999;
+  color: var(--text-secondary);
   margin: 5px 0 0 0;
+  transition: color 0.3s ease;
 }
 
 .help-text a {
@@ -111,9 +119,10 @@
   gap: 10px;
   cursor: pointer;
   padding: 15px;
-  border: 2px solid #ddd;
+  border: 2px solid var(--border-color);
   border-radius: 8px;
   transition: border-color 0.2s;
+  background-color: var(--card-bg);
 }
 
 .theme-option:hover {
@@ -132,7 +141,7 @@
   width: 100%;
   height: 80px;
   border-radius: 8px;
-  border: 2px solid #ddd;
+  border: 2px solid var(--border-color);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -167,7 +176,8 @@
 
 .theme-option span:last-child {
   font-size: 14px;
-  color: #333;
+  color: var(--text-primary);
+  transition: color 0.3s ease;
 }
 
 /* Save Button */

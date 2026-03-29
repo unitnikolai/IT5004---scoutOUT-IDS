@@ -1,69 +1,50 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiAlertTriangle } from 'react-icons/fi';
 import './Threats.css';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://172.20.0.31:5050/api';
+
 interface Threat {
   id: number;
-  domain: string;
-  ip: string;
+  message: string;
+  details: string;
+  sourceIP: string;
+  destIP: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  category: string;
-  count: number;
-  lastSeen: string;
-  devices: string[];
-  virusTotalScore: number;
+  timestamp: string;
+  type?: string;
 }
 
 const Threats: React.FC = () => {
-  const [threats] = useState<Threat[]>([
-    {
-      id: 1,
-      domain: 'malware.example.com',
-      ip: '45.33.32.156',
-      severity: 'critical',
-      category: 'Malware',
-      count: 15,
-      lastSeen: new Date().toISOString(),
-      devices: ['Gaming-PC', 'iPhone-12'],
-      virusTotalScore: 85
-    },
-    {
-      id: 2,
-      domain: 'phishing-site.net',
-      ip: '104.28.12.34',
-      severity: 'high',
-      category: 'Phishing',
-      count: 8,
-      lastSeen: new Date(Date.now() - 3600000).toISOString(),
-      devices: ['Laptop'],
-      virusTotalScore: 72
-    },
-    {
-      id: 3,
-      domain: 'suspicious-ads.com',
-      ip: '172.67.133.45',
-      severity: 'medium',
-      category: 'Command & Control',
-      count: 5,
-      lastSeen: new Date(Date.now() - 7200000).toISOString(),
-      devices: ['Smart-TV'],
-      virusTotalScore: 45
-    },
-    {
-      id: 4,
-      domain: 'botnet-server.org',
-      ip: '185.220.101.12',
-      severity: 'high',
-      category: 'Botnet',
-      count: 12,
-      lastSeen: new Date(Date.now() - 10800000).toISOString(),
-      devices: ['IoT-Camera'],
-      virusTotalScore: 78
-    }
-  ]);
-
+  const [threats, setThreats] = useState<Threat[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
-  const [filterCategory, setFilterCategory] = useState('all');
+  const [filterSeverity, setFilterSeverity] = useState('all');
+
+  useEffect(() => {
+    const fetchThreats = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`${API_BASE_URL}/threats/enhanced`);
+        if (!response.ok) throw new Error('Failed to fetch threats');
+        const data = await response.json();
+        setThreats(data.threats || []);
+      } catch (err) {
+        console.error('Error fetching threats:', err);
+        setError('Failed to load threats');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchThreats();
+    
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchThreats, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getSeverityColor = (severity: string) => {
     const colors = {
@@ -79,15 +60,9 @@ const Threats: React.FC = () => {
     return new Date(timestamp).toLocaleString();
   };
 
-  const getScoreColor = (score: number) => {
-    if (score >= 70) return '#D32F2F';
-    if (score >= 40) return '#FF9800';
-    return '#4CAF50';
-  };
-
-  const filteredThreats = filterCategory === 'all' 
+  const filteredThreats = filterSeverity === 'all' 
     ? threats 
-    : threats.filter(t => t.category === filterCategory);
+    : threats.filter(t => t.severity === filterSeverity);
 
   return (
     <div className="threats-page">
@@ -96,19 +71,33 @@ const Threats: React.FC = () => {
         <p className="subtitle">Security Threat Analysis</p>
       </div>
 
+      {error && <div className="error-banner">{error}</div>}
+
       <div className="threats-controls">
         <div className="filter-group">
-          <label>Filter by Category:</label>
-          <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}>
-            <option value="all">All Categories</option>
-            <option value="Malware">Malware</option>
-            <option value="Phishing">Phishing</option>
-            <option value="Botnet">Botnet</option>
-            <option value="Command & Control">Command & Control</option>
+          <label>Filter by Severity:</label>
+          <select value={filterSeverity} onChange={(e) => setFilterSeverity(e.target.value)}>
+            <option value="all">All Severity Levels</option>
+            <option value="critical">Critical</option>
+            <option value="high">High</option>
+            <option value="medium">Medium</option>
+            <option value="low">Low</option>
           </select>
+        </div>
+        <div className="threat-count">
+          {loading ? 'Loading...' : `${filteredThreats.length} threat(s) detected`}
         </div>
       </div>
 
+      {loading ? (
+        <div className="loading-state">
+          <p>Loading threats...</p>
+        </div>
+      ) : filteredThreats.length === 0 ? (
+        <div className="empty-state">
+          <p>No threats detected. Network appears secure.</p>
+        </div>
+      ) : (
       <div className="threats-list">
         {filteredThreats.map(threat => (
           <div 
@@ -126,47 +115,34 @@ const Threats: React.FC = () => {
             </div>
 
             <div className="threat-body">
-              <h3>{threat.domain}</h3>
+              <h3>{threat.message}</h3>
               <div className="threat-meta">
-                <span className="threat-ip">{threat.ip}</span>
-                <span className="threat-category">{threat.category}</span>
+                <span className="threat-ip">From: {threat.sourceIP}</span>
+                <span className="threat-type">{threat.type || 'packet-analysis'}</span>
               </div>
               <div className="threat-stats">
                 <div className="stat-item">
-                  <span className="stat-label">Blocked Count:</span>
-                  <span className="stat-value">{threat.count}</span>
+                  <span className="stat-label">To IP:</span>
+                  <span className="stat-value">{threat.destIP}</span>
                 </div>
                 <div className="stat-item">
-                  <span className="stat-label">Last Seen:</span>
-                  <span className="stat-value">{formatTimestamp(threat.lastSeen)}</span>
-                </div>
-                <div className="stat-item">
-                  <span className="stat-label">Affected Devices:</span>
-                  <span className="stat-value">{threat.devices.join(', ')}</span>
+                  <span className="stat-label">Detected:</span>
+                  <span className="stat-value">{formatTimestamp(threat.timestamp)}</span>
                 </div>
               </div>
-              <div className="virustotal-score">
-                <span>VirusTotal Score:</span>
-                <div className="score-bar">
-                  <div 
-                    className="score-fill" 
-                    style={{ 
-                      width: `${threat.virusTotalScore}%`,
-                      backgroundColor: getScoreColor(threat.virusTotalScore)
-                    }}
-                  ></div>
-                </div>
-                <span className="score-value">{threat.virusTotalScore}/100</span>
+              <div className="threat-details">
+                <p>{threat.details}</p>
               </div>
             </div>
 
             <div className="threat-actions">
-              <button className="action-btn block-btn">Block Permanently</button>
-              <button className="action-btn quarantine-btn">Quarantine Device</button>
+              <button className="action-btn block-btn">Block IP</button>
+              <button className="action-btn investigate-btn">Investigate</button>
             </div>
           </div>
         ))}
       </div>
+      )}
 
       {/* Threat Detail Modal */}
       {selectedThreat && (
@@ -181,16 +157,20 @@ const Threats: React.FC = () => {
                 <h3>Threat Information</h3>
                 <div className="detail-grid">
                   <div className="detail-row">
-                    <strong>Domain:</strong>
-                    <span>{selectedThreat.domain}</span>
+                    <strong>Message:</strong>
+                    <span>{selectedThreat.message}</span>
                   </div>
                   <div className="detail-row">
-                    <strong>IP Address:</strong>
-                    <span>{selectedThreat.ip}</span>
+                    <strong>Source IP:</strong>
+                    <span>{selectedThreat.sourceIP}</span>
                   </div>
                   <div className="detail-row">
-                    <strong>Category:</strong>
-                    <span>{selectedThreat.category}</span>
+                    <strong>Destination IP:</strong>
+                    <span>{selectedThreat.destIP}</span>
+                  </div>
+                  <div className="detail-row">
+                    <strong>Type:</strong>
+                    <span>{selectedThreat.type || 'packet-analysis'}</span>
                   </div>
                   <div className="detail-row">
                     <strong>Severity:</strong>
@@ -202,41 +182,23 @@ const Threats: React.FC = () => {
               </div>
 
               <div className="detail-section">
-                <h3>Activity</h3>
+                <h3>Detection Details</h3>
                 <div className="detail-grid">
                   <div className="detail-row">
-                    <strong>Total Blocks:</strong>
-                    <span>{selectedThreat.count}</span>
+                    <strong>Detected At:</strong>
+                    <span>{formatTimestamp(selectedThreat.timestamp)}</span>
                   </div>
                   <div className="detail-row">
-                    <strong>Last Detected:</strong>
-                    <span>{formatTimestamp(selectedThreat.lastSeen)}</span>
+                    <strong>Details:</strong>
+                    <span>{selectedThreat.details}</span>
                   </div>
-                  <div className="detail-row">
-                    <strong>Affected Devices:</strong>
-                    <span>{selectedThreat.devices.join(', ')}</span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="detail-section">
-                <h3>VirusTotal Analysis</h3>
-                <div className="virustotal-details">
-                  <div className="vt-score" style={{ color: getScoreColor(selectedThreat.virusTotalScore) }}>
-                    <strong>Threat Score:</strong>
-                    <span>{selectedThreat.virusTotalScore}/100</span>
-                  </div>
-                  <p className="vt-description">
-                    This threat has been identified by multiple security vendors. 
-                    The score indicates a {selectedThreat.virusTotalScore >= 70 ? 'high' : 'moderate'} risk level.
-                  </p>
                 </div>
               </div>
 
               <div className="modal-actions">
-                <button className="modal-action-btn block">Block Domain</button>
-                <button className="modal-action-btn quarantine">Quarantine Devices</button>
-                <button className="modal-action-btn report">Report False Positive</button>
+                <button className="modal-action-btn block">Block IP</button>
+                <button className="modal-action-btn investigate">Investigate</button>
+                <button className="modal-action-btn dismiss">Dismiss</button>
               </div>
             </div>
           </div>

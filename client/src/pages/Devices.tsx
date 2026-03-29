@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiSmartphone, FiMonitor, FiWifi, FiCoffee } from 'react-icons/fi';
 import './Devices.css';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://172.20.0.31:5050/api';
 
 interface Device {
   id: number;
@@ -17,75 +19,34 @@ interface Device {
 }
 
 const Devices: React.FC = () => {
-  const [devices] = useState<Device[]>([
-    {
-      id: 1,
-      name: 'iPhone-12',
-      ip: '192.168.1.105',
-      mac: '00:1A:2B:3C:4D:5E',
-      vendor: 'Apple Inc.',
-      type: 'Mobile',
-      firstSeen: new Date(Date.now() - 86400000 * 30).toISOString(),
-      lastSeen: new Date().toISOString(),
-      trust: 'trusted',
-      assignedTo: 'Child',
-      bandwidth: 450
-    },
-    {
-      id: 2,
-      name: 'Gaming-PC',
-      ip: '192.168.1.98',
-      mac: '00:1A:2B:3C:4D:5F',
-      vendor: 'Dell Inc.',
-      type: 'Computer',
-      firstSeen: new Date(Date.now() - 86400000 * 90).toISOString(),
-      lastSeen: new Date(Date.now() - 3600000).toISOString(),
-      trust: 'trusted',
-      assignedTo: 'Child',
-      bandwidth: 850
-    },
-    {
-      id: 3,
-      name: 'Smart-Fridge',
-      ip: '192.168.1.112',
-      mac: '00:1A:2B:3C:4D:60',
-      vendor: 'Samsung Electronics',
-      type: 'IoT',
-      firstSeen: new Date(Date.now() - 86400000 * 7).toISOString(),
-      lastSeen: new Date(Date.now() - 7200000).toISOString(),
-      trust: 'untrusted',
-      assignedTo: 'Guest',
-      bandwidth: 45
-    },
-    {
-      id: 4,
-      name: 'Smart-TV',
-      ip: '192.168.1.110',
-      mac: '00:1A:2B:3C:4D:61',
-      vendor: 'LG Electronics',
-      type: 'IoT',
-      firstSeen: new Date(Date.now() - 86400000 * 120).toISOString(),
-      lastSeen: new Date(Date.now() - 1800000).toISOString(),
-      trust: 'trusted',
-      assignedTo: 'Parent',
-      bandwidth: 620
-    },
-    {
-      id: 5,
-      name: 'Unknown-Device',
-      ip: '192.168.1.150',
-      mac: '00:1A:2B:3C:4D:62',
-      vendor: 'Unknown',
-      type: 'Unknown',
-      firstSeen: new Date(Date.now() - 3600000).toISOString(),
-      lastSeen: new Date(Date.now() - 600000).toISOString(),
-      trust: 'untrusted',
-      assignedTo: 'Guest',
-      bandwidth: 12
-    }
-  ]);
-
+  const [devices, setDevices] = useState<Device[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+
+  useEffect(() => {
+    const fetchDevices = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`${API_BASE_URL}/devices/all`);
+        if (!response.ok) throw new Error('Failed to fetch devices');
+        const data = await response.json();
+        setDevices(data.devices || []);
+      } catch (err) {
+        console.error('Error fetching devices:', err);
+        setError('Failed to load devices');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchDevices();
+    
+    // Refresh every 10 seconds
+    const interval = setInterval(fetchDevices, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   const getDeviceIcon = (type: string) => {
     switch (type.toLowerCase()) {
@@ -129,6 +90,17 @@ const Devices: React.FC = () => {
         <p className="subtitle">Network Device Inventory</p>
       </div>
 
+      {error && <div className="error-banner">{error}</div>}
+
+      {loading ? (
+        <div className="loading-state">
+          <p>Loading devices...</p>
+        </div>
+      ) : devices.length === 0 ? (
+        <div className="empty-state">
+          <p>No devices detected on network.</p>
+        </div>
+      ) : (
       <div className="devices-grid">
         {devices.map(device => (
           <div 
@@ -188,6 +160,7 @@ const Devices: React.FC = () => {
           </div>
         ))}
       </div>
+      )}
 
       {/* Device Detail Modal */}
       {selectedDevice && (

@@ -57,6 +57,7 @@ export const dashboardService = {
   // Get dashboard statistics
   async getStats(): Promise<DashboardResponse<DashboardStats>> {
     const response = await api.get('/dashboard/stats');
+    console.log('[dashboardService.getStats] Response:', response.data);
     return response.data;
   },
 

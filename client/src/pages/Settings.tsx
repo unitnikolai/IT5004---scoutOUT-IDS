@@ -1,15 +1,20 @@
 import React, { useState } from 'react';
 import { FiUser, FiBell, FiMoon, FiDatabase, FiSettings } from 'react-icons/fi';
+import { useTheme } from '../ThemeContext';
 import './Settings.css';
 
 const Settings: React.FC = () => {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const { theme, setTheme } = useTheme();
   const [emailAlerts, setEmailAlerts] = useState(true);
   const [smsAlerts, setSmsAlerts] = useState(false);
   const [severityThreshold, setSeverityThreshold] = useState('medium');
   const [dataRetention, setDataRetention] = useState(30);
   const [updateFrequency, setUpdateFrequency] = useState(5);
   const [virusTotalApiKey, setVirusTotalApiKey] = useState('');
+
+  const handleThemeChange = (newTheme: 'light' | 'dark') => {
+    setTheme(newTheme);
+  };
 
   const handleSave = () => {
     alert('Settings saved successfully!');
@@ -98,7 +103,7 @@ const Settings: React.FC = () => {
                   name="theme" 
                   value="light"
                   checked={theme === 'light'}
-                  onChange={(e) => setTheme(e.target.value as 'light' | 'dark')}
+                  onChange={(e) => handleThemeChange(e.target.value as 'light' | 'dark')}
                 />
                 <span className="theme-preview light-theme">
                   <div className="preview-header"></div>
@@ -112,7 +117,7 @@ const Settings: React.FC = () => {
                   name="theme" 
                   value="dark"
                   checked={theme === 'dark'}
-                  onChange={(e) => setTheme(e.target.value as 'light' | 'dark')}
+                  onChange={(e) => handleThemeChange(e.target.value as 'light' | 'dark')}
                 />
                 <span className="theme-preview dark-theme">
                   <div className="preview-header"></div>

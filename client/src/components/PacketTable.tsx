@@ -35,6 +35,7 @@ const PacketTable: React.FC<PacketTableProps> = ({ packets, onPacketSelect }) =>
             <th>Protocol</th>
             <th>Source</th>
             <th>Destination</th>
+            <th>Hostname</th>
             <th>Length</th>
             <th>Flags</th>
           </tr>
@@ -58,6 +59,7 @@ const PacketTable: React.FC<PacketTableProps> = ({ packets, onPacketSelect }) =>
               </td>
               <td>{packet.sourceIP}:{packet.sourcePort}</td>
               <td>{packet.destIP}:{packet.destPort}</td>
+              <td className="hostname">{packet.hostname || '-'}</td>
               <td>{packet.length} bytes</td>
               <td>{packet.flags || '-'}</td>
             </tr>

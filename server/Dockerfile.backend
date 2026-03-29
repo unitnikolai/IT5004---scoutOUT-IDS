@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1
+
+# Comments are provided throughout this file to help you get started.
+# If you need more help, visit the Dockerfile reference guide at
+# https://docs.docker.com/go/dockerfile-reference/
+
+# Want to help us make this template better? Share your feedback here: https://forms.gle/ybq9Krt8jtBL3iCk7
+
+ARG NODE_VERSION=24.11.0
+
+FROM node:${NODE_VERSION}-alpine
+
+WORKDIR /usr/src/app
+
+# Copy package files (as root)
+COPY package.json package-lock.json ./
+
+# Copy server files (as root)
+COPY server/ ./
+
+# Change ownership to node user
+RUN chown -R node:node /usr/src/app
+
+# Switch to node user
+USER node
+
+# Download dependencies (production only)
+RUN npm ci --omit=dev
+
+# Use production node environment.
+ENV NODE_ENV production
+
+# Expose the port that the application listens on.
+EXPOSE 5050
+
+# Run the application.
+CMD npm start

@@ -1,0 +1,676 @@
+2026-03-28 22:38:34,159 - INFO - ==================================================
+2026-03-28 22:38:34,159 - INFO - ScoutOut Packet Capture Starting
+2026-03-28 22:38:34,159 - INFO - ==================================================
+2026-03-28 22:38:34,160 - INFO - API URL: http://localhost:5050/api
+2026-03-28 22:38:34,160 - INFO - Interface: all interfaces
+2026-03-28 22:38:34,160 - INFO - Filter: none
+2026-03-28 22:38:34,160 - INFO - Batch size: 50
+2026-03-28 22:38:34,160 - INFO - Batch wait time: 0.5 seconds
+2026-03-28 22:38:34,163 - DEBUG - Starting new HTTP connection (1): localhost:5050
+2026-03-28 22:38:34,174 - DEBUG - http://localhost:5050 "GET /api/health HTTP/1.1" 200 54
+2026-03-28 22:38:34,174 - INFO - ✓ API connection successful - Server status: OK
+2026-03-28 22:38:34,175 - INFO - API sender thread started
+2026-03-28 22:38:34,175 - INFO - Starting packet capture... Press Ctrl+C to stop
+2026-03-28 22:38:34,539 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 22:38:34,539 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 22:38:34,634 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 22:38:35,654 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 22:38:36,139 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 22:38:36,140 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 22:38:36,672 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 22:38:46,360 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 22:38:46,366 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 22:38:51,384 - INFO - Captured 10 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 22:38:51,384 - DEBUG - Other packet added to batch: 10/50
+2026-03-28 22:38:51,385 - DEBUG - Other packet added to batch: 11/50
+2026-03-28 22:38:56,608 - DEBUG - Other packet added to batch: 12/50
+2026-03-28 22:38:56,608 - DEBUG - Other packet added to batch: 13/50
+2026-03-28 22:38:59,243 - DEBUG - Other packet added to batch: 14/50
+2026-03-28 22:38:59,404 - DEBUG - Other packet added to batch: 15/50
+2026-03-28 22:38:59,036 - DEBUG - Other packet added to batch: 16/50
+2026-03-28 22:38:59,726 - DEBUG - Other packet added to batch: 17/50
+2026-03-28 22:39:00,744 - DEBUG - Other packet added to batch: 18/50
+2026-03-28 22:39:01,763 - DEBUG - Other packet added to batch: 19/50
+2026-03-28 22:39:02,788 - INFO - Captured 20 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 22:39:02,788 - DEBUG - Other packet added to batch: 20/50
+2026-03-28 22:39:06,337 - DEBUG - Other packet added to batch: 21/50
+2026-03-28 22:39:06,343 - DEBUG - Other packet added to batch: 22/50
+2026-03-28 22:39:11,158 - DEBUG - Other packet added to batch: 23/50
+2026-03-28 22:39:11,159 - DEBUG - Other packet added to batch: 24/50
+2026-03-28 22:39:16,533 - DEBUG - Other packet added to batch: 25/50
+2026-03-28 22:39:16,533 - DEBUG - Other packet added to batch: 26/50
+2026-03-28 22:39:21,568 - DEBUG - Other packet added to batch: 27/50
+2026-03-28 22:39:21,568 - DEBUG - Other packet added to batch: 28/50
+2026-03-28 22:39:27,076 - DEBUG - Other packet added to batch: 29/50
+2026-03-28 22:39:27,076 - INFO - Captured 30 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 22:39:27,076 - DEBUG - Other packet added to batch: 30/50
+2026-03-28 22:39:28,876 - DEBUG - Other packet added to batch: 31/50
+2026-03-28 22:39:28,457 - DEBUG - Other packet added to batch: 32/50
+2026-03-28 22:39:32,800 - DEBUG - Other packet added to batch: 33/50
+2026-03-28 22:39:36,836 - DEBUG - Other packet added to batch: 34/50
+2026-03-28 22:39:38,003 - DEBUG - Other packet added to batch: 35/50
+2026-03-28 22:39:47,022 - DEBUG - Other packet added to batch: 36/50
+2026-03-28 22:39:47,022 - DEBUG - Other packet added to batch: 37/50
+2026-03-28 22:39:51,873 - DEBUG - Other packet added to batch: 38/50
+2026-03-28 22:39:51,873 - DEBUG - Other packet added to batch: 39/50
+2026-03-28 22:39:52,076 - INFO - Captured 40 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 22:39:52,076 - DEBUG - Other packet added to batch: 40/50
+2026-03-28 22:39:52,077 - DEBUG - Other packet added to batch: 41/50
+2026-03-28 22:39:52,238 - DEBUG - Other packet added to batch: 42/50
+2026-03-28 22:39:57,478 - DEBUG - Other packet added to batch: 43/50
+2026-03-28 22:39:58,346 - DEBUG - Other packet added to batch: 44/50
+2026-03-28 22:39:58,375 - DEBUG - Other packet added to batch: 45/50
+2026-03-28 22:39:58,377 - INFO - Captured 50 packets, sent 0, queue size: 5, dropped 0
+2026-03-28 22:39:58,377 - DEBUG - Other packet added to batch: 46/50
+2026-03-28 22:39:58,377 - DEBUG - Other packet added to batch: 47/50
+2026-03-28 22:39:58,378 - DEBUG - Other packet added to batch: 48/50
+2026-03-28 22:39:58,378 - DEBUG - Other packet added to batch: 49/50
+2026-03-28 22:39:58,378 - DEBUG - Other packet added to batch: 50/50
+2026-03-28 22:39:58,378 - INFO - Sending other batch of 50 packets
+2026-03-28 22:39:58,379 - DEBUG - Resetting dropped connection: localhost
+2026-03-28 22:39:58,392 - DEBUG - http://localhost:5050 "POST /api/packets/ HTTP/1.1" 201 53
+2026-03-28 22:39:58,393 - DEBUG - Batch sent successfully: 50/50 packets
+2026-03-28 22:39:58,393 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 22:39:57,938 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 22:39:57,974 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 22:40:02,071 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 22:40:02,802 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 22:40:06,208 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 22:40:06,208 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 22:40:06,497 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 22:40:06,498 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 22:40:06,630 - INFO - Captured 60 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 22:40:06,630 - DEBUG - Other packet added to batch: 10/50
+2026-03-28 22:40:06,631 - DEBUG - Other packet added to batch: 11/50
+2026-03-28 22:40:06,640 - DEBUG - Other packet added to batch: 12/50
+2026-03-28 22:40:06,892 - DEBUG - Other packet added to batch: 13/50
+2026-03-28 22:40:06,892 - DEBUG - Other packet added to batch: 14/50
+2026-03-28 22:40:07,347 - DEBUG - Other packet added to batch: 15/50
+2026-03-28 22:40:07,347 - DEBUG - Other packet added to batch: 16/50
+2026-03-28 22:40:08,701 - DEBUG - Other packet added to batch: 17/50
+2026-03-28 22:40:08,701 - DEBUG - Other packet added to batch: 18/50
+2026-03-28 22:40:09,265 - DEBUG - Other packet added to batch: 19/50
+2026-03-28 22:40:09,265 - INFO - Captured 70 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 22:40:09,265 - DEBUG - Other packet added to batch: 20/50
+2026-03-28 22:40:09,556 - DEBUG - Other packet added to batch: 21/50
+2026-03-28 22:40:09,556 - DEBUG - Other packet added to batch: 22/50
+2026-03-28 22:40:09,689 - DEBUG - Other packet added to batch: 23/50
+2026-03-28 22:40:09,689 - DEBUG - Other packet added to batch: 24/50
+2026-03-28 22:40:09,950 - DEBUG - Other packet added to batch: 25/50
+2026-03-28 22:40:09,951 - DEBUG - Other packet added to batch: 26/50
+2026-03-28 22:40:10,406 - DEBUG - Other packet added to batch: 27/50
+2026-03-28 22:40:10,407 - DEBUG - Other packet added to batch: 28/50
+2026-03-28 22:40:11,759 - DEBUG - Other packet added to batch: 29/50
+2026-03-28 22:40:11,759 - INFO - Captured 80 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 22:40:11,759 - DEBUG - Other packet added to batch: 30/50
+2026-03-28 22:40:12,324 - DEBUG - Other packet added to batch: 31/50
+2026-03-28 22:40:12,325 - DEBUG - Other packet added to batch: 32/50
+2026-03-28 22:40:12,615 - DEBUG - Other packet added to batch: 33/50
+2026-03-28 22:40:12,615 - DEBUG - Other packet added to batch: 34/50
+2026-03-28 22:40:12,747 - DEBUG - Other packet added to batch: 35/50
+2026-03-28 22:40:12,748 - DEBUG - Other packet added to batch: 36/50
+2026-03-28 22:40:12,820 - DEBUG - Other packet added to batch: 37/50
+2026-03-28 22:40:13,009 - DEBUG - Other packet added to batch: 38/50
+2026-03-28 22:40:13,010 - DEBUG - Other packet added to batch: 39/50
+2026-03-28 22:40:13,464 - INFO - Captured 90 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 22:40:13,464 - DEBUG - Other packet added to batch: 40/50
+2026-03-28 22:40:13,465 - DEBUG - Other packet added to batch: 41/50
+2026-03-28 22:40:14,818 - DEBUG - Other packet added to batch: 42/50
+2026-03-28 22:40:14,818 - DEBUG - Other packet added to batch: 43/50
+2026-03-28 22:40:17,296 - DEBUG - Other packet added to batch: 44/50
+2026-03-28 22:40:17,868 - DEBUG - Other packet added to batch: 45/50
+2026-03-28 22:40:17,868 - DEBUG - Other packet added to batch: 46/50
+2026-03-28 22:40:22,720 - DEBUG - Other packet added to batch: 47/50
+2026-03-28 22:40:27,048 - DEBUG - Other packet added to batch: 48/50
+2026-03-28 22:40:27,813 - DEBUG - Other packet added to batch: 49/50
+2026-03-28 22:40:27,395 - INFO - Captured 100 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 22:40:27,396 - DEBUG - Other packet added to batch: 50/50
+2026-03-28 22:40:27,396 - INFO - Sending other batch of 50 packets
+2026-03-28 22:40:27,397 - DEBUG - Resetting dropped connection: localhost
+2026-03-28 22:40:27,402 - DEBUG - http://localhost:5050 "POST /api/packets/ HTTP/1.1" 201 53
+2026-03-28 22:40:27,403 - DEBUG - Batch sent successfully: 50/50 packets
+2026-03-28 22:40:31,523 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 22:40:31,524 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 22:40:32,564 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 22:40:32,814 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 22:40:33,652 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 22:40:34,669 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 22:40:35,687 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 22:40:36,705 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 22:40:36,721 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 22:40:40,257 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:40,258 - INFO - Stopping packet capture...
+2026-03-28 22:40:40,258 - INFO - ==================================================
+2026-03-28 22:40:40,258 - INFO - Capture Statistics:
+2026-03-28 22:40:40,258 - INFO -   Runtime: 126.1 seconds
+2026-03-28 22:40:40,259 - INFO -   Packets captured: 109
+2026-03-28 22:40:40,259 - INFO -   Packets sent: 100
+2026-03-28 22:40:40,259 - INFO -   Send failures: 0
+2026-03-28 22:40:40,259 - INFO -   Packets dropped: 0
+2026-03-28 22:40:40,259 - INFO -   Capture rate: 0.9 pkt/sec
+2026-03-28 22:40:40,260 - INFO - ==================================================
+2026-03-28 22:40:40,271 - INFO - Sending other batch of 9 packets
+2026-03-28 22:40:40,272 - DEBUG - Resetting dropped connection: localhost
+2026-03-28 22:40:40,276 - DEBUG - http://localhost:5050 "POST /api/packets/ HTTP/1.1" 201 51
+2026-03-28 22:40:40,276 - DEBUG - Batch sent successfully: 9/9 packets
+2026-03-28 22:40:41,571 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:42,509 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:42,827 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:43,071 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:43,284 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:43,496 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:43,749 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:43,961 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:44,173 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:44,368 - INFO - Received signal 2, shutting down...
+2026-03-28 22:40:44,597 - INFO - Received signal 2, shutting down...
+2026-03-28 22:41:45,228 - ERROR - This script must be run as root for packet capture
+2026-03-28 22:41:45,228 - ERROR - Please run: sudo python3 scoutout_capture.py
+2026-03-28 22:41:52,414 - INFO - ==================================================
+2026-03-28 22:41:52,414 - INFO - ScoutOut Packet Capture Starting
+2026-03-28 22:41:52,414 - INFO - ==================================================
+2026-03-28 22:41:52,415 - INFO - API URL: http://192.168.4.61:5050/api
+2026-03-28 22:41:52,415 - INFO - Interface: all interfaces
+2026-03-28 22:41:52,415 - INFO - Filter: none
+2026-03-28 22:41:52,415 - INFO - Batch size: 50
+2026-03-28 22:41:52,415 - INFO - Batch wait time: 0.5 seconds
+2026-03-28 22:41:52,416 - DEBUG - Starting new HTTP connection (1): 192.168.4.61:5050
+2026-03-28 22:42:01,892 - ERROR - ✗ Cannot connect to API: HTTPConnectionPool(host='192.168.4.61', port=5050): Max retries exceeded with url: /api/health (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x7f279ca3cd40>, 'Connection to 192.168.4.61 timed out. (connect timeout=10.0)'))
+2026-03-28 22:42:01,893 - ERROR - Cannot connect to ScoutOut API. Please check:
+2026-03-28 22:42:01,893 - ERROR - 1. Server is running: cd server && node index.js
+2026-03-28 22:42:01,893 - ERROR - 2. URL is correct
+2026-03-28 22:42:01,893 - ERROR - 3. Network connectivity
+2026-03-28 22:46:28,032 - INFO - ==================================================
+2026-03-28 22:46:28,033 - INFO - ScoutOut Packet Capture Starting
+2026-03-28 22:46:28,033 - INFO - ==================================================
+2026-03-28 22:46:28,033 - INFO - API URL: http://192.168.4.61:5050/api
+2026-03-28 22:46:28,033 - INFO - Interface: all interfaces
+2026-03-28 22:46:28,033 - INFO - Filter: none
+2026-03-28 22:46:28,034 - INFO - Batch size: 50
+2026-03-28 22:46:28,034 - INFO - Batch wait time: 0.5 seconds
+2026-03-28 22:46:28,035 - DEBUG - Starting new HTTP connection (1): 192.168.4.61:5050
+2026-03-28 22:46:28,037 - DEBUG - http://192.168.4.61:5050 "GET /api/health HTTP/1.1" 200 54
+2026-03-28 22:46:28,037 - INFO - ✓ API connection successful - Server status: OK
+2026-03-28 22:46:28,038 - INFO - API sender thread started
+2026-03-28 22:46:28,038 - INFO - Starting packet capture... Press Ctrl+C to stop
+2026-03-28 22:46:33,794 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 22:46:34,815 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 22:46:35,835 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 22:46:36,850 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 22:46:36,854 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 22:46:38,002 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 22:46:45,349 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 22:46:46,254 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 22:46:48,500 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 22:46:50,515 - INFO - Captured 10 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 22:46:50,515 - DEBUG - Other packet added to batch: 10/50
+2026-03-28 22:46:50,097 - DEBUG - Other packet added to batch: 11/50
+2026-03-28 22:46:53,004 - DEBUG - Other packet added to batch: 12/50
+2026-03-28 22:46:53,004 - DEBUG - Other packet added to batch: 13/50
+2026-03-28 22:46:56,581 - DEBUG - Other packet added to batch: 14/50
+2026-03-28 22:46:57,867 - DEBUG - Other packet added to batch: 15/50
+2026-03-28 22:46:58,879 - DEBUG - Other packet added to batch: 16/50
+2026-03-28 22:46:59,901 - DEBUG - Other packet added to batch: 17/50
+2026-03-28 22:47:00,923 - DEBUG - Other packet added to batch: 18/50
+2026-03-28 22:47:01,945 - DEBUG - Other packet added to batch: 19/50
+2026-03-28 22:47:06,332 - INFO - Captured 20 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 22:47:06,332 - DEBUG - Other packet added to batch: 20/50
+2026-03-28 22:47:07,604 - DEBUG - Other packet added to batch: 21/50
+2026-03-28 22:47:15,493 - DEBUG - Other packet added to batch: 22/50
+2026-03-28 22:47:16,116 - DEBUG - Other packet added to batch: 23/50
+2026-03-28 22:47:18,533 - DEBUG - Other packet added to batch: 24/50
+2026-03-28 22:47:19,688 - DEBUG - Other packet added to batch: 25/50
+2026-03-28 22:47:19,285 - DEBUG - Other packet added to batch: 26/50
+2026-03-28 22:47:20,298 - DEBUG - Other packet added to batch: 27/50
+2026-03-28 22:47:20,299 - DEBUG - Other packet added to batch: 28/50
+2026-03-28 22:47:27,258 - DEBUG - Other packet added to batch: 29/50
+2026-03-28 22:47:27,262 - INFO - Captured 30 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 22:47:27,262 - DEBUG - Other packet added to batch: 30/50
+2026-03-28 22:47:30,277 - DEBUG - Other packet added to batch: 31/50
+2026-03-28 22:47:30,278 - DEBUG - Other packet added to batch: 32/50
+2026-03-28 22:47:30,568 - DEBUG - Other packet added to batch: 33/50
+2026-03-28 22:47:30,568 - DEBUG - Other packet added to batch: 34/50
+2026-03-28 22:47:30,701 - DEBUG - Other packet added to batch: 35/50
+2026-03-28 22:47:30,702 - DEBUG - Other packet added to batch: 36/50
+2026-03-28 22:47:30,963 - DEBUG - Other packet added to batch: 37/50
+2026-03-28 22:47:30,964 - DEBUG - Other packet added to batch: 38/50
+2026-03-28 22:47:31,419 - DEBUG - Other packet added to batch: 39/50
+2026-03-28 22:47:31,419 - INFO - Captured 40 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 22:47:31,419 - DEBUG - Other packet added to batch: 40/50
+2026-03-28 22:47:32,199 - DEBUG - Other packet added to batch: 41/50
+2026-03-28 22:47:32,199 - DEBUG - Other packet added to batch: 42/50
+2026-03-28 22:47:32,776 - DEBUG - Other packet added to batch: 43/50
+2026-03-28 22:47:32,776 - DEBUG - Other packet added to batch: 44/50
+2026-03-28 22:47:33,342 - DEBUG - Other packet added to batch: 45/50
+2026-03-28 22:47:33,343 - DEBUG - Other packet added to batch: 46/50
+2026-03-28 22:47:33,633 - DEBUG - Other packet added to batch: 47/50
+2026-03-28 22:47:33,633 - DEBUG - Other packet added to batch: 48/50
+2026-03-28 22:47:33,766 - DEBUG - Other packet added to batch: 49/50
+2026-03-28 22:47:33,766 - INFO - Captured 50 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 22:47:33,766 - DEBUG - Other packet added to batch: 50/50
+2026-03-28 22:47:33,767 - INFO - Sending other batch of 50 packets
+2026-03-28 22:47:33,768 - DEBUG - Resetting dropped connection: 192.168.4.61
+2026-03-28 22:47:33,904 - DEBUG - http://192.168.4.61:5050 "POST /api/packets/ HTTP/1.1" 201 53
+2026-03-28 22:47:33,905 - DEBUG - Batch sent successfully: 50/50 packets
+2026-03-28 22:47:34,027 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 22:47:34,028 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 22:47:34,483 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 22:47:34,484 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 22:47:35,840 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 22:47:35,841 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 22:47:36,407 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 22:47:36,407 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 22:47:36,697 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 22:47:36,697 - INFO - Captured 60 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 22:47:36,698 - DEBUG - Other packet added to batch: 10/50
+2026-03-28 22:47:36,831 - DEBUG - Other packet added to batch: 11/50
+2026-03-28 22:47:36,832 - DEBUG - Other packet added to batch: 12/50
+2026-03-28 22:47:37,092 - DEBUG - Other packet added to batch: 13/50
+2026-03-28 22:47:37,092 - DEBUG - Other packet added to batch: 14/50
+2026-03-28 22:47:37,485 - DEBUG - Other packet added to batch: 15/50
+2026-03-28 22:47:37,486 - DEBUG - Other packet added to batch: 16/50
+2026-03-28 22:47:37,548 - DEBUG - Other packet added to batch: 17/50
+2026-03-28 22:47:37,549 - DEBUG - Other packet added to batch: 18/50
+2026-03-28 22:47:38,916 - DEBUG - Other packet added to batch: 19/50
+2026-03-28 22:47:38,917 - INFO - Captured 70 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 22:47:38,917 - DEBUG - Other packet added to batch: 20/50
+2026-03-28 22:47:45,468 - DEBUG - Other packet added to batch: 21/50
+2026-03-28 22:47:47,832 - DEBUG - Other packet added to batch: 22/50
+2026-03-28 22:47:47,837 - DEBUG - Other packet added to batch: 23/50
+2026-03-28 22:47:49,027 - DEBUG - Other packet added to batch: 24/50
+2026-03-28 22:47:48,607 - DEBUG - Other packet added to batch: 25/50
+2026-03-28 22:47:57,349 - DEBUG - Other packet added to batch: 26/50
+2026-03-28 22:47:57,360 - DEBUG - Other packet added to batch: 27/50
+2026-03-28 22:47:58,060 - DEBUG - Other packet added to batch: 28/50
+2026-03-28 22:47:58,061 - INFO - Captured 80 packets, sent 50, queue size: 2, dropped 0
+2026-03-28 22:47:58,061 - DEBUG - Other packet added to batch: 29/50
+2026-03-28 22:47:58,062 - DEBUG - Other packet added to batch: 30/50
+2026-03-28 22:47:58,063 - DEBUG - Other packet added to batch: 31/50
+2026-03-28 22:47:58,063 - DEBUG - Other packet added to batch: 32/50
+2026-03-28 22:47:58,063 - DEBUG - Other packet added to batch: 33/50
+2026-03-28 22:47:58,064 - DEBUG - Other packet added to batch: 34/50
+2026-03-28 22:47:58,178 - DEBUG - Other packet added to batch: 35/50
+2026-03-28 22:48:07,786 - DEBUG - Other packet added to batch: 36/50
+2026-03-28 22:48:07,792 - DEBUG - Other packet added to batch: 37/50
+2026-03-28 22:48:12,501 - DEBUG - Other packet added to batch: 38/50
+2026-03-28 22:48:12,501 - DEBUG - Other packet added to batch: 39/50
+2026-03-28 22:48:15,507 - INFO - Captured 90 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 22:48:15,507 - DEBUG - Other packet added to batch: 40/50
+2026-03-28 22:48:17,208 - DEBUG - Other packet added to batch: 41/50
+2026-03-28 22:48:18,421 - DEBUG - Other packet added to batch: 42/50
+2026-03-28 22:48:18,339 - DEBUG - Other packet added to batch: 43/50
+2026-03-28 22:48:17,919 - DEBUG - Other packet added to batch: 44/50
+2026-03-28 22:48:21,588 - DEBUG - Other packet added to batch: 45/50
+2026-03-28 22:48:21,589 - DEBUG - Other packet added to batch: 46/50
+2026-03-28 22:48:27,287 - DEBUG - Other packet added to batch: 47/50
+2026-03-28 22:48:27,293 - DEBUG - Other packet added to batch: 48/50
+2026-03-28 22:48:33,978 - DEBUG - Other packet added to batch: 49/50
+2026-03-28 22:48:35,004 - INFO - Captured 100 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 22:48:35,004 - DEBUG - Other packet added to batch: 50/50
+2026-03-28 22:48:35,005 - INFO - Sending other batch of 50 packets
+2026-03-28 22:48:35,006 - DEBUG - Resetting dropped connection: 192.168.4.61
+2026-03-28 22:48:35,010 - DEBUG - http://192.168.4.61:5050 "POST /api/packets/ HTTP/1.1" 201 53
+2026-03-28 22:48:35,010 - DEBUG - Batch sent successfully: 50/50 packets
+2026-03-28 22:48:36,031 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 22:48:37,057 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 22:48:37,695 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 22:48:37,695 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 22:48:45,593 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 22:48:46,167 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 22:48:46,168 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 22:48:47,314 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 22:48:47,588 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 22:48:47,169 - INFO - Captured 110 packets, sent 100, queue size: 1, dropped 0
+2026-03-28 22:48:47,169 - DEBUG - Other packet added to batch: 10/50
+2026-03-28 22:48:47,649 - DEBUG - Other packet added to batch: 11/50
+2026-03-28 22:48:57,853 - DEBUG - Other packet added to batch: 12/50
+2026-03-28 22:48:57,862 - DEBUG - Other packet added to batch: 13/50
+2026-03-28 22:48:58,971 - DEBUG - Other packet added to batch: 14/50
+2026-03-28 22:48:59,997 - DEBUG - Other packet added to batch: 15/50
+2026-03-28 22:49:01,022 - DEBUG - Other packet added to batch: 16/50
+2026-03-28 22:49:02,048 - DEBUG - Other packet added to batch: 17/50
+2026-03-28 22:49:08,039 - DEBUG - Other packet added to batch: 18/50
+2026-03-28 22:49:08,044 - DEBUG - Other packet added to batch: 19/50
+2026-03-28 22:49:15,538 - INFO - Captured 120 packets, sent 100, queue size: 1, dropped 0
+2026-03-28 22:49:15,538 - DEBUG - Other packet added to batch: 20/50
+2026-03-28 22:49:16,906 - DEBUG - Other packet added to batch: 21/50
+2026-03-28 22:49:16,486 - DEBUG - Other packet added to batch: 22/50
+2026-03-28 22:49:18,009 - DEBUG - Other packet added to batch: 23/50
+2026-03-28 22:49:19,202 - DEBUG - Other packet added to batch: 24/50
+2026-03-28 22:49:21,444 - DEBUG - Other packet added to batch: 25/50
+2026-03-28 22:49:21,445 - DEBUG - Other packet added to batch: 26/50
+2026-03-28 22:49:21,564 - DEBUG - Other packet added to batch: 27/50
+2026-03-28 22:49:21,564 - DEBUG - Other packet added to batch: 28/50
+2026-03-28 22:49:27,484 - DEBUG - Other packet added to batch: 29/50
+2026-03-28 22:49:29,596 - INFO - Captured 130 packets, sent 100, queue size: 1, dropped 0
+2026-03-28 22:49:29,596 - DEBUG - Other packet added to batch: 30/50
+2026-03-28 22:49:34,373 - DEBUG - Other packet added to batch: 31/50
+2026-03-28 22:49:37,822 - DEBUG - Other packet added to batch: 32/50
+2026-03-28 22:49:40,078 - DEBUG - Other packet added to batch: 33/50
+2026-03-28 22:49:45,564 - DEBUG - Other packet added to batch: 34/50
+2026-03-28 22:49:46,210 - DEBUG - Other packet added to batch: 35/50
+2026-03-28 22:49:45,793 - DEBUG - Other packet added to batch: 36/50
+2026-03-28 22:49:47,756 - DEBUG - Other packet added to batch: 37/50
+2026-03-28 22:49:50,978 - DEBUG - Other packet added to batch: 38/50
+2026-03-28 22:49:58,152 - DEBUG - Other packet added to batch: 39/50
+2026-03-28 22:49:58,152 - INFO - Captured 140 packets, sent 100, queue size: 1, dropped 0
+2026-03-28 22:49:58,153 - DEBUG - Other packet added to batch: 40/50
+2026-03-28 22:49:58,155 - DEBUG - Other packet added to batch: 41/50
+2026-03-28 22:49:58,155 - DEBUG - Other packet added to batch: 42/50
+2026-03-28 22:49:58,155 - DEBUG - Other packet added to batch: 43/50
+2026-03-28 22:49:58,156 - DEBUG - Other packet added to batch: 44/50
+2026-03-28 22:49:58,156 - DEBUG - Other packet added to batch: 45/50
+2026-03-28 22:49:58,156 - DEBUG - Other packet added to batch: 46/50
+2026-03-28 22:49:58,271 - DEBUG - Other packet added to batch: 47/50
+2026-03-28 22:50:00,265 - DEBUG - Other packet added to batch: 48/50
+2026-03-28 22:50:02,877 - INFO - Captured 150 packets, sent 100, queue size: 2, dropped 0
+2026-03-28 22:50:02,877 - DEBUG - Other packet added to batch: 49/50
+2026-03-28 22:50:02,878 - DEBUG - Other packet added to batch: 50/50
+2026-03-28 22:50:02,878 - INFO - Sending other batch of 50 packets
+2026-03-28 22:50:02,879 - DEBUG - Resetting dropped connection: 192.168.4.61
+2026-03-28 22:50:02,890 - DEBUG - http://192.168.4.61:5050 "POST /api/packets/ HTTP/1.1" 201 53
+2026-03-28 22:50:02,890 - DEBUG - Batch sent successfully: 50/50 packets
+2026-03-28 22:50:03,545 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 22:50:03,545 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 22:50:07,937 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 22:50:07,937 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 22:50:08,574 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 22:50:10,586 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 22:50:15,617 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 22:50:15,481 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 22:50:15,062 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 22:50:18,207 - INFO - Captured 160 packets, sent 150, queue size: 1, dropped 0
+2026-03-28 22:50:18,207 - DEBUG - Other packet added to batch: 10/50
+2026-03-28 22:50:20,318 - DEBUG - Other packet added to batch: 11/50
+2026-03-28 22:50:28,565 - DEBUG - Other packet added to batch: 12/50
+2026-03-28 22:50:30,799 - DEBUG - Other packet added to batch: 13/50
+2026-03-28 22:50:33,995 - DEBUG - Other packet added to batch: 14/50
+2026-03-28 22:50:35,022 - DEBUG - Other packet added to batch: 15/50
+2026-03-28 22:50:36,046 - DEBUG - Other packet added to batch: 16/50
+2026-03-28 22:50:37,070 - DEBUG - Other packet added to batch: 17/50
+2026-03-28 22:50:37,873 - DEBUG - Other packet added to batch: 18/50
+2026-03-28 22:50:37,881 - DEBUG - Other packet added to batch: 19/50
+2026-03-28 22:50:39,046 - INFO - Captured 170 packets, sent 150, queue size: 1, dropped 0
+2026-03-28 22:50:39,047 - DEBUG - Other packet added to batch: 20/50
+2026-03-28 22:50:40,121 - DEBUG - Other packet added to batch: 21/50
+2026-03-28 22:50:40,996 - DEBUG - Other packet added to batch: 22/50
+2026-03-28 22:50:44,133 - DEBUG - Other packet added to batch: 23/50
+2026-03-28 22:50:44,133 - DEBUG - Other packet added to batch: 24/50
+2026-03-28 22:50:44,784 - DEBUG - Other packet added to batch: 25/50
+2026-03-28 22:50:44,364 - DEBUG - Other packet added to batch: 26/50
+2026-03-28 22:50:44,423 - DEBUG - Other packet added to batch: 27/50
+2026-03-28 22:50:44,423 - DEBUG - Other packet added to batch: 28/50
+2026-03-28 22:50:47,920 - DEBUG - Other packet added to batch: 29/50
+2026-03-28 22:50:48,707 - INFO - Captured 180 packets, sent 150, queue size: 1, dropped 0
+2026-03-28 22:50:48,707 - DEBUG - Other packet added to batch: 30/50
+2026-03-28 22:50:50,890 - DEBUG - Other packet added to batch: 31/50
+2026-03-28 22:50:51,033 - DEBUG - Other packet added to batch: 32/50
+2026-03-28 22:50:59,049 - DEBUG - Other packet added to batch: 33/50
+2026-03-28 22:50:59,270 - DEBUG - Other packet added to batch: 34/50
+2026-03-28 22:51:00,077 - DEBUG - Other packet added to batch: 35/50
+2026-03-28 22:51:00,487 - DEBUG - Other packet added to batch: 36/50
+2026-03-28 22:51:01,102 - DEBUG - Other packet added to batch: 37/50
+2026-03-28 22:51:02,128 - DEBUG - Other packet added to batch: 38/50
+2026-03-28 22:51:09,609 - DEBUG - Other packet added to batch: 39/50
+2026-03-28 22:51:10,729 - INFO - Captured 190 packets, sent 150, queue size: 1, dropped 0
+2026-03-28 22:51:10,729 - DEBUG - Other packet added to batch: 40/50
+2026-03-28 22:51:14,086 - DEBUG - Other packet added to batch: 41/50
+2026-03-28 22:51:13,675 - DEBUG - Other packet added to batch: 42/50
+2026-03-28 22:51:18,228 - DEBUG - Other packet added to batch: 43/50
+2026-03-28 22:51:18,556 - DEBUG - Other packet added to batch: 44/50
+2026-03-28 22:51:18,556 - DEBUG - Other packet added to batch: 45/50
+2026-03-28 22:51:20,329 - DEBUG - Other packet added to batch: 46/50
+2026-03-28 22:51:21,044 - DEBUG - Other packet added to batch: 47/50
+2026-03-28 22:51:25,402 - DEBUG - Other packet added to batch: 48/50
+2026-03-28 22:51:25,402 - DEBUG - Other packet added to batch: 49/50
+2026-03-28 22:51:28,992 - INFO - Captured 200 packets, sent 150, queue size: 1, dropped 0
+2026-03-28 22:51:28,992 - DEBUG - Other packet added to batch: 50/50
+2026-03-28 22:51:28,993 - INFO - Sending other batch of 50 packets
+2026-03-28 22:51:28,994 - DEBUG - Resetting dropped connection: 192.168.4.61
+2026-03-28 22:51:28,998 - DEBUG - http://192.168.4.61:5050 "POST /api/packets/ HTTP/1.1" 201 53
+2026-03-28 22:51:28,999 - DEBUG - Batch sent successfully: 50/50 packets
+2026-03-28 22:51:31,122 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 22:51:39,376 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 22:51:41,432 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 22:51:43,332 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 22:51:42,942 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 22:51:48,783 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 22:51:48,789 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 22:51:51,058 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 22:51:53,687 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 22:51:53,687 - INFO - Captured 210 packets, sent 200, queue size: 1, dropped 0
+2026-03-28 22:51:53,687 - DEBUG - Other packet added to batch: 10/50
+2026-03-28 22:51:58,127 - DEBUG - Other packet added to batch: 11/50
+2026-03-28 22:51:58,204 - DEBUG - Other packet added to batch: 12/50
+2026-03-28 22:51:58,205 - DEBUG - Other packet added to batch: 13/50
+2026-03-28 22:51:58,206 - DEBUG - Other packet added to batch: 14/50
+2026-03-28 22:51:58,206 - DEBUG - Other packet added to batch: 15/50
+2026-03-28 22:51:58,206 - DEBUG - Other packet added to batch: 16/50
+2026-03-28 22:51:58,207 - DEBUG - Other packet added to batch: 17/50
+2026-03-28 22:51:58,207 - DEBUG - Other packet added to batch: 18/50
+2026-03-28 22:51:58,324 - DEBUG - Other packet added to batch: 19/50
+2026-03-28 22:51:59,458 - INFO - Captured 220 packets, sent 200, queue size: 1, dropped 0
+2026-03-28 22:51:59,458 - DEBUG - Other packet added to batch: 20/50
+2026-03-28 22:52:08,708 - DEBUG - Other packet added to batch: 21/50
+2026-03-28 22:52:09,932 - DEBUG - Other packet added to batch: 22/50
+2026-03-28 22:52:12,604 - DEBUG - Other packet added to batch: 23/50
+2026-03-28 22:52:12,195 - DEBUG - Other packet added to batch: 24/50
+2026-03-28 22:52:13,042 - DEBUG - Other packet added to batch: 25/50
+2026-03-28 22:52:13,042 - DEBUG - Other packet added to batch: 26/50
+2026-03-28 22:52:18,400 - DEBUG - Other packet added to batch: 27/50
+2026-03-28 22:52:19,516 - DEBUG - Other packet added to batch: 28/50
+2026-03-28 22:52:21,106 - DEBUG - Other packet added to batch: 29/50
+2026-03-28 22:52:23,213 - INFO - Received signal 2, shutting down...
+2026-03-28 22:52:23,214 - INFO - Stopping packet capture...
+2026-03-28 22:52:23,214 - INFO - ==================================================
+2026-03-28 22:52:23,214 - INFO - Capture Statistics:
+2026-03-28 22:52:23,214 - INFO -   Runtime: 355.2 seconds
+2026-03-28 22:52:23,214 - INFO -   Packets captured: 229
+2026-03-28 22:52:23,214 - INFO -   Packets sent: 200
+2026-03-28 22:52:23,215 - INFO -   Send failures: 0
+2026-03-28 22:52:23,215 - INFO -   Packets dropped: 0
+2026-03-28 22:52:23,215 - INFO -   Capture rate: 0.6 pkt/sec
+2026-03-28 22:52:23,215 - INFO - ==================================================
+2026-03-28 22:52:23,237 - INFO - Sending other batch of 29 packets
+2026-03-28 22:52:23,238 - DEBUG - Resetting dropped connection: 192.168.4.61
+2026-03-28 22:52:23,242 - DEBUG - http://192.168.4.61:5050 "POST /api/packets/ HTTP/1.1" 201 53
+2026-03-28 22:52:23,243 - DEBUG - Batch sent successfully: 29/29 packets
+2026-03-28 22:53:17,138 - INFO - Received signal 2, shutting down...
+2026-03-28 22:53:42,297 - ERROR - This script must be run as root for packet capture
+2026-03-28 22:53:42,297 - ERROR - Please run: sudo python3 scoutout_capture.py
+2026-03-28 22:53:49,613 - INFO - ==================================================
+2026-03-28 22:53:49,613 - INFO - ScoutOut Packet Capture Starting
+2026-03-28 22:53:49,613 - INFO - ==================================================
+2026-03-28 22:53:49,613 - INFO - API URL: http://host.docker.internal:5050/api
+2026-03-28 22:53:49,614 - INFO - Interface: all interfaces
+2026-03-28 22:53:49,614 - INFO - Filter: none
+2026-03-28 22:53:49,614 - INFO - Batch size: 50
+2026-03-28 22:53:49,614 - INFO - Batch wait time: 0.5 seconds
+2026-03-28 22:53:49,615 - DEBUG - Starting new HTTP connection (1): host.docker.internal:5050
+2026-03-28 22:53:49,627 - ERROR - ✗ Cannot connect to API: HTTPConnectionPool(host='host.docker.internal', port=5050): Max retries exceeded with url: /api/health (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x7fd2a7e0cd70>: Failed to establish a new connection: [Errno 113] No route to host'))
+2026-03-28 22:53:49,627 - ERROR - Cannot connect to ScoutOut API. Please check:
+2026-03-28 22:53:49,628 - ERROR - 1. Server is running: cd server && node index.js
+2026-03-28 22:53:49,628 - ERROR - 2. URL is correct
+2026-03-28 22:53:49,628 - ERROR - 3. Network connectivity
+2026-03-28 23:01:30,405 - INFO - ==================================================
+2026-03-28 23:01:30,406 - INFO - ScoutOut Packet Capture Starting
+2026-03-28 23:01:30,406 - INFO - ==================================================
+2026-03-28 23:01:30,406 - INFO - API URL: http://192.168.4.61:5050/api
+2026-03-28 23:01:30,406 - INFO - Interface: all interfaces
+2026-03-28 23:01:30,406 - INFO - Filter: none
+2026-03-28 23:01:30,407 - INFO - Batch size: 50
+2026-03-28 23:01:30,407 - INFO - Batch wait time: 0.5 seconds
+2026-03-28 23:01:30,408 - DEBUG - Starting new HTTP connection (1): 192.168.4.61:5050
+2026-03-28 23:01:40,416 - ERROR - ✗ Cannot connect to API: HTTPConnectionPool(host='192.168.4.61', port=5050): Max retries exceeded with url: /api/health (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x7fbeda1a4d70>, 'Connection to 192.168.4.61 timed out. (connect timeout=10.0)'))
+2026-03-28 23:01:40,416 - ERROR - Cannot connect to ScoutOut API. Please check:
+2026-03-28 23:01:40,416 - ERROR - 1. Server is running: cd server && node index.js
+2026-03-28 23:01:40,417 - ERROR - 2. URL is correct
+2026-03-28 23:01:40,417 - ERROR - 3. Network connectivity
+2026-03-28 23:02:16,983 - INFO - ==================================================
+2026-03-28 23:02:16,983 - INFO - ScoutOut Packet Capture Starting
+2026-03-28 23:02:16,983 - INFO - ==================================================
+2026-03-28 23:02:16,983 - INFO - API URL: http://192.168.4.61:5050/api
+2026-03-28 23:02:16,983 - INFO - Interface: all interfaces
+2026-03-28 23:02:16,984 - INFO - Filter: none
+2026-03-28 23:02:16,984 - INFO - Batch size: 50
+2026-03-28 23:02:16,984 - INFO - Batch wait time: 0.5 seconds
+2026-03-28 23:02:16,985 - DEBUG - Starting new HTTP connection (1): 192.168.4.61:5050
+2026-03-28 23:02:26,207 - ERROR - ✗ Cannot connect to API: HTTPConnectionPool(host='192.168.4.61', port=5050): Max retries exceeded with url: /api/health (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x7f0fc2144e00>, 'Connection to 192.168.4.61 timed out. (connect timeout=10.0)'))
+2026-03-28 23:02:26,207 - ERROR - Cannot connect to ScoutOut API. Please check:
+2026-03-28 23:02:26,208 - ERROR - 1. Server is running: cd server && node index.js
+2026-03-28 23:02:26,208 - ERROR - 2. URL is correct
+2026-03-28 23:02:26,208 - ERROR - 3. Network connectivity
+2026-03-28 23:04:26,382 - INFO - ==================================================
+2026-03-28 23:04:26,382 - INFO - ScoutOut Packet Capture Starting
+2026-03-28 23:04:26,383 - INFO - ==================================================
+2026-03-28 23:04:26,383 - INFO - API URL: http://192.168.4.61:5050/api
+2026-03-28 23:04:26,383 - INFO - Interface: all interfaces
+2026-03-28 23:04:26,383 - INFO - Filter: none
+2026-03-28 23:04:26,384 - INFO - Batch size: 50
+2026-03-28 23:04:26,384 - INFO - Batch wait time: 0.5 seconds
+2026-03-28 23:04:26,385 - DEBUG - Starting new HTTP connection (1): 192.168.4.61:5050
+2026-03-28 23:04:36,405 - ERROR - ✗ Cannot connect to API: HTTPConnectionPool(host='192.168.4.61', port=5050): Max retries exceeded with url: /api/health (Caused by ConnectTimeoutError(<urllib3.connection.HTTPConnection object at 0x7f3abcce8cb0>, 'Connection to 192.168.4.61 timed out. (connect timeout=10.0)'))
+2026-03-28 23:04:36,406 - ERROR - Cannot connect to ScoutOut API. Please check:
+2026-03-28 23:04:36,406 - ERROR - 1. Server is running: cd server && node index.js
+2026-03-28 23:04:36,406 - ERROR - 2. URL is correct
+2026-03-28 23:04:36,406 - ERROR - 3. Network connectivity
+2026-03-28 23:05:13,460 - INFO - ==================================================
+2026-03-28 23:05:13,460 - INFO - ScoutOut Packet Capture Starting
+2026-03-28 23:05:13,460 - INFO - ==================================================
+2026-03-28 23:05:13,461 - INFO - API URL: http://localhost:5050/api
+2026-03-28 23:05:13,461 - INFO - Interface: all interfaces
+2026-03-28 23:05:13,461 - INFO - Filter: none
+2026-03-28 23:05:13,461 - INFO - Batch size: 50
+2026-03-28 23:05:13,461 - INFO - Batch wait time: 0.5 seconds
+2026-03-28 23:05:13,462 - DEBUG - Starting new HTTP connection (1): localhost:5050
+2026-03-28 23:05:13,472 - DEBUG - http://localhost:5050 "GET /api/health HTTP/1.1" 200 54
+2026-03-28 23:05:13,473 - INFO - ✓ API connection successful - Server status: OK
+2026-03-28 23:05:13,473 - INFO - API sender thread started
+2026-03-28 23:05:13,473 - INFO - Starting packet capture... Press Ctrl+C to stop
+2026-03-28 23:05:15,603 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 23:05:15,604 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 23:05:15,816 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 23:05:20,490 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 23:05:20,881 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 23:05:20,881 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 23:05:21,294 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 23:05:21,288 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 23:05:20,872 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 23:05:25,741 - INFO - Captured 10 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 23:05:25,741 - DEBUG - Other packet added to batch: 10/50
+2026-03-28 23:05:30,916 - DEBUG - Other packet added to batch: 11/50
+2026-03-28 23:05:36,136 - DEBUG - Other packet added to batch: 12/50
+2026-03-28 23:05:41,436 - DEBUG - Other packet added to batch: 13/50
+2026-03-28 23:05:46,468 - DEBUG - Other packet added to batch: 14/50
+2026-03-28 23:05:50,524 - DEBUG - Other packet added to batch: 15/50
+2026-03-28 23:05:50,467 - DEBUG - Other packet added to batch: 16/50
+2026-03-28 23:05:50,050 - DEBUG - Other packet added to batch: 17/50
+2026-03-28 23:05:50,679 - DEBUG - Other packet added to batch: 18/50
+2026-03-28 23:05:50,679 - DEBUG - Other packet added to batch: 19/50
+2026-03-28 23:05:51,027 - INFO - Captured 20 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 23:05:51,027 - DEBUG - Other packet added to batch: 20/50
+2026-03-28 23:05:55,090 - DEBUG - Other packet added to batch: 21/50
+2026-03-28 23:05:55,090 - DEBUG - Other packet added to batch: 22/50
+2026-03-28 23:05:56,406 - DEBUG - Other packet added to batch: 23/50
+2026-03-28 23:05:58,079 - DEBUG - Other packet added to batch: 24/50
+2026-03-28 23:05:58,080 - DEBUG - Other packet added to batch: 25/50
+2026-03-28 23:05:58,081 - DEBUG - Other packet added to batch: 26/50
+2026-03-28 23:05:58,081 - INFO - Captured 30 packets, sent 0, queue size: 4, dropped 0
+2026-03-28 23:05:58,081 - DEBUG - Other packet added to batch: 27/50
+2026-03-28 23:05:58,082 - DEBUG - Other packet added to batch: 28/50
+2026-03-28 23:05:58,082 - DEBUG - Other packet added to batch: 29/50
+2026-03-28 23:05:58,082 - DEBUG - Other packet added to batch: 30/50
+2026-03-28 23:05:58,202 - DEBUG - Other packet added to batch: 31/50
+2026-03-28 23:06:00,593 - DEBUG - Other packet added to batch: 32/50
+2026-03-28 23:06:06,612 - DEBUG - Other packet added to batch: 33/50
+2026-03-28 23:06:10,838 - DEBUG - Other packet added to batch: 34/50
+2026-03-28 23:06:16,887 - DEBUG - Other packet added to batch: 35/50
+2026-03-28 23:06:19,647 - DEBUG - Other packet added to batch: 36/50
+2026-03-28 23:06:19,229 - DEBUG - Other packet added to batch: 37/50
+2026-03-28 23:06:19,721 - DEBUG - Other packet added to batch: 38/50
+2026-03-28 23:06:20,593 - DEBUG - Other packet added to batch: 39/50
+2026-03-28 23:06:21,139 - INFO - Captured 40 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 23:06:21,139 - DEBUG - Other packet added to batch: 40/50
+2026-03-28 23:06:21,139 - DEBUG - Other packet added to batch: 41/50
+2026-03-28 23:06:26,182 - DEBUG - Other packet added to batch: 42/50
+2026-03-28 23:06:31,019 - DEBUG - Other packet added to batch: 43/50
+2026-03-28 23:06:33,992 - DEBUG - Other packet added to batch: 44/50
+2026-03-28 23:06:35,025 - DEBUG - Other packet added to batch: 45/50
+2026-03-28 23:06:35,951 - DEBUG - Other packet added to batch: 46/50
+2026-03-28 23:06:35,952 - DEBUG - Other packet added to batch: 47/50
+2026-03-28 23:06:36,060 - DEBUG - Other packet added to batch: 48/50
+2026-03-28 23:06:36,167 - DEBUG - Other packet added to batch: 49/50
+2026-03-28 23:06:37,095 - INFO - Captured 50 packets, sent 0, queue size: 1, dropped 0
+2026-03-28 23:06:37,095 - DEBUG - Other packet added to batch: 50/50
+2026-03-28 23:06:37,095 - INFO - Sending other batch of 50 packets
+2026-03-28 23:06:37,096 - DEBUG - Resetting dropped connection: localhost
+2026-03-28 23:06:37,106 - DEBUG - http://localhost:5050 "POST /api/packets/ HTTP/1.1" 201 53
+2026-03-28 23:06:37,107 - DEBUG - Batch sent successfully: 50/50 packets
+2026-03-28 23:06:41,572 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 23:06:46,710 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 23:06:48,740 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 23:06:48,336 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 23:06:49,736 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 23:06:50,860 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 23:06:50,861 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 23:06:51,176 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 23:06:56,534 - DEBUG - Other packet added to batch: 9/50
+2026-03-28 23:06:59,007 - INFO - Captured 60 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 23:06:59,007 - DEBUG - Other packet added to batch: 10/50
+2026-03-28 23:07:00,036 - DEBUG - Other packet added to batch: 11/50
+2026-03-28 23:07:01,064 - DEBUG - Other packet added to batch: 12/50
+2026-03-28 23:07:01,430 - DEBUG - Other packet added to batch: 13/50
+2026-03-28 23:07:02,093 - DEBUG - Other packet added to batch: 14/50
+2026-03-28 23:07:06,565 - DEBUG - Other packet added to batch: 15/50
+2026-03-28 23:07:07,619 - DEBUG - Other packet added to batch: 16/50
+2026-03-28 23:07:07,619 - DEBUG - Other packet added to batch: 17/50
+2026-03-28 23:07:11,934 - DEBUG - Other packet added to batch: 18/50
+2026-03-28 23:07:16,715 - DEBUG - Other packet added to batch: 19/50
+2026-03-28 23:07:16,716 - INFO - Captured 70 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 23:07:16,716 - DEBUG - Other packet added to batch: 20/50
+2026-03-28 23:07:17,165 - DEBUG - Other packet added to batch: 21/50
+2026-03-28 23:07:17,923 - DEBUG - Other packet added to batch: 22/50
+2026-03-28 23:07:17,505 - DEBUG - Other packet added to batch: 23/50
+2026-03-28 23:07:19,771 - DEBUG - Other packet added to batch: 24/50
+2026-03-28 23:07:21,414 - DEBUG - Other packet added to batch: 25/50
+2026-03-28 23:07:21,415 - DEBUG - Other packet added to batch: 26/50
+2026-03-28 23:07:21,859 - DEBUG - Other packet added to batch: 27/50
+2026-03-28 23:07:27,263 - DEBUG - Other packet added to batch: 28/50
+2026-03-28 23:07:32,155 - DEBUG - Other packet added to batch: 29/50
+2026-03-28 23:07:37,250 - INFO - Captured 80 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 23:07:37,251 - DEBUG - Other packet added to batch: 30/50
+2026-03-28 23:07:42,711 - DEBUG - Other packet added to batch: 31/50
+2026-03-28 23:07:47,104 - DEBUG - Other packet added to batch: 32/50
+2026-03-28 23:07:46,976 - DEBUG - Other packet added to batch: 33/50
+2026-03-28 23:07:48,189 - DEBUG - Other packet added to batch: 34/50
+2026-03-28 23:07:49,738 - DEBUG - Other packet added to batch: 35/50
+2026-03-28 23:07:51,514 - DEBUG - Other packet added to batch: 36/50
+2026-03-28 23:07:51,570 - DEBUG - Other packet added to batch: 37/50
+2026-03-28 23:07:51,570 - DEBUG - Other packet added to batch: 38/50
+2026-03-28 23:07:52,045 - INFO - Captured 90 packets, sent 50, queue size: 2, dropped 0
+2026-03-28 23:07:52,045 - DEBUG - Other packet added to batch: 39/50
+2026-03-28 23:07:52,045 - DEBUG - Other packet added to batch: 40/50
+2026-03-28 23:07:58,125 - DEBUG - Other packet added to batch: 41/50
+2026-03-28 23:07:58,125 - DEBUG - Other packet added to batch: 42/50
+2026-03-28 23:07:58,126 - DEBUG - Other packet added to batch: 43/50
+2026-03-28 23:07:58,127 - DEBUG - Other packet added to batch: 44/50
+2026-03-28 23:07:58,127 - DEBUG - Other packet added to batch: 45/50
+2026-03-28 23:07:58,127 - DEBUG - Other packet added to batch: 46/50
+2026-03-28 23:07:58,127 - DEBUG - Other packet added to batch: 47/50
+2026-03-28 23:07:58,248 - DEBUG - Other packet added to batch: 48/50
+2026-03-28 23:07:58,598 - DEBUG - Other packet added to batch: 49/50
+2026-03-28 23:08:01,836 - INFO - Captured 100 packets, sent 50, queue size: 1, dropped 0
+2026-03-28 23:08:01,836 - DEBUG - Other packet added to batch: 50/50
+2026-03-28 23:08:01,837 - INFO - Sending other batch of 50 packets
+2026-03-28 23:08:01,837 - DEBUG - Resetting dropped connection: localhost
+2026-03-28 23:08:01,842 - DEBUG - http://localhost:5050 "POST /api/packets/ HTTP/1.1" 201 53
+2026-03-28 23:08:01,842 - DEBUG - Batch sent successfully: 50/50 packets
+2026-03-28 23:08:08,183 - DEBUG - Other packet added to batch: 1/50
+2026-03-28 23:08:12,175 - DEBUG - Other packet added to batch: 2/50
+2026-03-28 23:08:16,240 - DEBUG - Other packet added to batch: 3/50
+2026-03-28 23:08:15,834 - DEBUG - Other packet added to batch: 4/50
+2026-03-28 23:08:18,776 - DEBUG - Other packet added to batch: 5/50
+2026-03-28 23:08:19,820 - DEBUG - Other packet added to batch: 6/50
+2026-03-28 23:08:20,760 - DEBUG - Other packet added to batch: 7/50
+2026-03-28 23:08:20,761 - DEBUG - Other packet added to batch: 8/50
+2026-03-28 23:08:22,132 - DEBUG - Other packet added to batch: 9/50

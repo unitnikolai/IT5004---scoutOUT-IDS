@@ -1,5 +1,6 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { ThemeProvider } from './ThemeContext';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
 import NetworkTraffic from './pages/NetworkTraffic';
@@ -13,20 +14,22 @@ import './App.css';
 
 function App() {
   return (
-    <Router>
-      <Layout>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/traffic" element={<NetworkTraffic />} />
-          <Route path="/parental-controls" element={<ParentalControls />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/threats" element={<Threats />} />
-          <Route path="/devices" element={<Devices />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/help" element={<Help />} />
-        </Routes>
-      </Layout>
-    </Router>
+    <ThemeProvider>
+      <Router>
+        <Layout>
+          <Routes>
+            <Route path="/" element={<Dashboard />} />
+            <Route path="/traffic" element={<NetworkTraffic />} />
+            <Route path="/parental-controls" element={<ParentalControls />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/threats" element={<Threats />} />
+            <Route path="/devices" element={<Devices />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/help" element={<Help />} />
+          </Routes>
+        </Layout>
+      </Router>
+    </ThemeProvider>
   );
 }
 

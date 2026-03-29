@@ -23,10 +23,11 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
+    "start": "cross-env HOST=0.0.0.0 DANGEROUSLY_DISABLE_HOST_CHECK=true react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "eject": "react-scripts eject",
+    "dev": "cross-env HOST=0.0.0.0 DANGEROUSLY_DISABLE_HOST_CHECK=true react-scripts start"
   },
   "eslintConfig": {
     "extends": [
@@ -47,6 +48,7 @@
     ]
   },
   "devDependencies": {
-    "@types/react-icons": "^2.2.7"
+    "@types/react-icons": "^2.2.7",
+    "cross-env": "^7.0.3"
   }
 }

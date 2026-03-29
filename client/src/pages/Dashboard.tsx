@@ -27,6 +27,7 @@ const Dashboard: React.FC = () => {
       setError(null);
 
       const data = await dashboardService.getAllData();
+      console.log('Dashboard data:', data);
       
       setStats(data.stats);
       setAlerts(data.alerts);
@@ -45,6 +46,9 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    // Auto-refresh every 5 seconds to pick up new packets
+    const interval = setInterval(fetchDashboardData, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   const formatTimestamp = (timestamp: string) => {
