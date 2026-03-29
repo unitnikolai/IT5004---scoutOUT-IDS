@@ -25,12 +25,19 @@ let abortController = new AbortController();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 15000, // Increased to avoid timeouts during heavy packet processing
 });
 
-// Helper to safely handle AbortError
+// Helper to safely handle AbortError (including cancelled DNS lookups)
 const isAbortError = (error: any): boolean => {
-  return axios.isCancel(error) || error?.name === 'AbortError' || error?.code === 'ECONNABORTED';
+  const message = error?.message?.toLowerCase() || '';
+  return (
+    axios.isCancel(error) || 
+    error?.name === 'AbortError' || 
+    error?.code === 'ECONNABORTED' ||
+    message.includes('ns binding') ||
+    message.includes('aborted')
+  );
 };
 
 export interface DashboardStats {

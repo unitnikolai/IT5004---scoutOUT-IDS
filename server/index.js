@@ -620,15 +620,29 @@ const generateThreatActivity = (packets) => {
   return hourlyData;
 };
 
+// Simple cache for dashboard data to reduce re-computation
+let dashboardCache = {
+  stats: null,
+  alerts: null,
+  devices: null,
+  threats: null,
+  activity: null,
+  timestamp: 0
+};
+const DASHBOARD_CACHE_TTL = 2000; // 2 second cache
+
 app.get('/api/dashboard/stats', (req, res) => {
   try {
-    const packets = getPackets();
-    console.log(`[Dashboard Stats] Fetched ${packets.length} packets`);
-    if (packets.length > 0) {
-      console.log(`[Dashboard Stats] Sample packet:`, JSON.stringify(packets[0], null, 2).substring(0, 200));
+    const now = Date.now();
+    // Return cached data if still fresh
+    if (dashboardCache.stats && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
+      return res.json({ stats: dashboardCache.stats, timestamp: new Date().toISOString() });
     }
+
+    const packets = getPackets();
     const stats = generateDashboardStats(packets);
-    console.log(`[Dashboard Stats] Returning:`, JSON.stringify({stats, timestamp: new Date().toISOString()}).substring(0, 300));
+    dashboardCache.stats = stats;
+    dashboardCache.timestamp = now;
     res.json({ stats, timestamp: new Date().toISOString() });
   } catch (error) {
     console.error('[Dashboard Stats] Error:', error);
@@ -638,9 +652,15 @@ app.get('/api/dashboard/stats', (req, res) => {
 
 app.get('/api/dashboard/alerts', (req, res) => {
   try {
+    const now = Date.now();
+    if (dashboardCache.alerts && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
+      return res.json({ alerts: dashboardCache.alerts, timestamp: new Date().toISOString() });
+    }
+
     const packets = getPackets();
     const alerts = generateRecentAlerts(packets);
-    console.log(`[Dashboard Alerts] Returning ${alerts.length} alerts`);
+    dashboardCache.alerts = alerts;
+    dashboardCache.timestamp = now;
     res.json({ alerts, timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate recent alerts' });
@@ -649,9 +669,15 @@ app.get('/api/dashboard/alerts', (req, res) => {
 
 app.get('/api/dashboard/devices', (req, res) => {
   try {
+    const now = Date.now();
+    if (dashboardCache.devices && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
+      return res.json({ devices: dashboardCache.devices, timestamp: new Date().toISOString() });
+    }
+
     const packets = getPackets();
     const devices = generateNewDevices(packets);
-    console.log(`[Dashboard Devices] Returning ${devices.length} devices`);
+    dashboardCache.devices = devices;
+    dashboardCache.timestamp = now;
     res.json({ devices, timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate new devices data' });
@@ -660,9 +686,15 @@ app.get('/api/dashboard/devices', (req, res) => {
 
 app.get('/api/dashboard/threats', (req, res) => {
   try {
+    const now = Date.now();
+    if (dashboardCache.threats && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
+      return res.json({ threats: dashboardCache.threats, timestamp: new Date().toISOString() });
+    }
+
     const packets = getPackets();
     const threats = generateTopThreats(packets);
-    console.log(`[Dashboard Threats] Returning ${threats.length} threats`);
+    dashboardCache.threats = threats;
+    dashboardCache.timestamp = now;
     res.json({ threats, timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate top threats data' });
@@ -671,9 +703,15 @@ app.get('/api/dashboard/threats', (req, res) => {
 
 app.get('/api/dashboard/activity', (req, res) => {
   try {
+    const now = Date.now();
+    if (dashboardCache.activity && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
+      return res.json({ activity: dashboardCache.activity, timestamp: new Date().toISOString() });
+    }
+
     const packets = getPackets();
     const activity = generateThreatActivity(packets);
-    console.log(`[Dashboard Activity] Returning ${activity.length} activity entries`);
+    dashboardCache.activity = activity;
+    dashboardCache.timestamp = now;
     res.json({ activity, timestamp: new Date().toISOString() });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate threat activity data' });

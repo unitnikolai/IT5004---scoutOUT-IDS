@@ -36,8 +36,13 @@ const Dashboard: React.FC = () => {
       setThreatActivity(data.activity);
       setLastUpdated(new Date());
     } catch (err: any) {
-      // Silently ignore abort errors (user navigated away)
-      const isAbortError = err?.code === 'ECONNABORTED' || err?.name === 'AbortError' || err?.message?.includes('cancel');
+      // Silently ignore abort errors (user navigated away or request was cancelled)
+      const message = err?.message?.toLowerCase() || '';
+      const isAbortError = err?.code === 'ECONNABORTED' || 
+                          err?.name === 'AbortError' || 
+                          message.includes('cancel') ||
+                          message.includes('ns binding') ||
+                          message.includes('aborted');
       if (!isAbortError) {
         console.error('Failed to fetch dashboard data:', err);
         setError('Failed to load dashboard data. Please try again.');
@@ -50,7 +55,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
-    // Auto-refresh every 5 seconds to pick up new packets
+    // Auto-refresh every 5 seconds - with 2s cache on backend, reduces actual computation
     const interval = setInterval(fetchDashboardData, 5000);
     
     // Cleanup: cancel pending requests and clear interval when component unmounts
