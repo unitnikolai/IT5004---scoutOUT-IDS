@@ -53,13 +53,20 @@ const Devices: React.FC = () => {
         const data = await response.json();
         setDevices(data.devices || []);
       } catch (err: any) {
-        // Silently ignore abort errors (user navigated away)
-        const isAbortError = err?.name === 'AbortError' || err?.message?.includes('abort');
+        // Silently ignore abort errors (user navigated away or request was cancelled)
+        // Includes DNS cancellations (ns binding) that occur during navigation
+        const message = err?.message?.toLowerCase() || '';
+        const isAbortError = (
+          err?.name === 'AbortError' || 
+          message.includes('abort') ||
+          message.includes('ns binding') ||
+          message.includes('cancel')
+        );
         if (!isAbortError) {
           console.error('Error fetching devices:', err);
           setError('Failed to load devices');
         }
-        // Keep existing data if available
+        // IMPORTANT: Keep existing data if available - do not wipe state on abort errors
       } finally {
         setLoading(false);
       }

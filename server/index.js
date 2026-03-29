@@ -38,21 +38,43 @@ app.get('/api/health', (req, res) => {
 
 // Batch packets endpoint - efficient for high-volume packet streams
 app.post('/api/packets/', batchLimiter, (req, res) => {
-  const packets = Array.isArray(req.body) ? req.body : [req.body];
+  // Handle client disconnect during processing
+  const onClientDisconnect = () => {
+    console.warn(`[Batch Receiver] Client disconnected while processing batch upload`);
+  };
   
-  let added = 0;
-  packets.forEach(packet => {
-    if (packet && packet.timestamp) {
-      addPacket(packet);
-      added++;
-    }
-  });
+  req.on('close', onClientDisconnect);
+  
+  try {
+    const packets = Array.isArray(req.body) ? req.body : [req.body];
+    
+    let added = 0;
+    packets.forEach(packet => {
+      if (packet && packet.timestamp) {
+        addPacket(packet);
+        added++;
+      }
+    });
+    
     console.log(`[Batch Receiver] Added ${added}/${packets.length} packets. Total in store: ${require('./packetStore.js').getPackets().length}`);
-    res.status(201).json({ 
-    status: 'ok',
-    packetsAdded: added,
-    totalRequested: packets.length
-  });
+    
+    // Only send response if client is still connected
+    if (!res.headersSent) {
+      res.status(201).json({ 
+        status: 'ok',
+        packetsAdded: added,
+        totalRequested: packets.length
+      });
+    }
+  } catch (error) {
+    console.error('[Batch Receiver] Error:', error);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Failed to process packet batch' });
+    }
+  } finally {
+    // Clean up listener
+    req.removeListener('close', onClientDisconnect);
+  }
 });
 
 app.get('/api/packets', (req, res) => {
@@ -718,10 +740,49 @@ app.get('/api/dashboard/activity', (req, res) => {
   }
 });
 
-// Error handling middleware
+// ============================================================================
+// ERROR HANDLING MIDDLEWARE & GLOBAL EXCEPTION HANDLERS
+// ============================================================================
+
+// Add request cleanup handler - detects client disconnects and orphaned connections
+app.use((req, res, next) => {
+  // Track request completion
+  res.on('finish', () => {
+    // Request completed normally
+  });
+  
+  // Clean up if client disconnects or abandons request
+  req.on('close', () => {
+    if (!res.headersSent) {
+      console.warn(`[Request Cleanup] Client disconnected before response sent for ${req.method} ${req.path}`);
+    }
+  });
+  
+  req.on('error', (err) => {
+    console.error(`[Request Error] ${req.method} ${req.path}:`, err.message);
+  });
+  
+  next();
+});
+
+// Global Express error-handling middleware (must have 4 params: err, req, res, next)
+// Catches synchronous errors and express errors
 app.use((err, req, res, next) => {
+  const statusCode = err.statusCode || err.status || 500;
+  const errorMessage = err.message || 'Internal Server Error';
+  
+  console.error(`[Express Error] ${statusCode} - ${errorMessage}`);
   console.error(err.stack);
-  res.status(500).json({ error: 'Something went wrong!' });
+  
+  // Send error response without crashing
+  if (!res.headersSent) {
+    res.status(statusCode).json({
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    });
+  }
+  
+  // DO NOT exit process - keep server alive for capture script
 });
 
 // 404 handler
@@ -729,8 +790,42 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Endpoint not found' });
 });
 
-app.listen(PORT, '0.0.0.0',() => {
+// ============================================================================
+// GLOBAL UNCAUGHT EXCEPTION HANDLERS
+// Keep server alive even when uncaught exceptions occur
+// ============================================================================
+
+// Handle uncaught synchronous exceptions
+process.on('uncaughtException', (err) => {
+  console.error('[UNCAUGHT EXCEPTION]', err.message);
+  console.error(err.stack);
+  // Log but DO NOT exit - server must stay alive to receive packets
+  console.log('[Server Status] Server is still running and available for requests');
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[UNHANDLED REJECTION]', reason);
+  if (promise) {
+    console.error('Promise:', promise);
+  }
+  // Log but DO NOT exit - server must stay alive to receive packets
+  console.log('[Server Status] Server is still running and available for requests');
+});
+
+// Server startup
+const server = app.listen(PORT, '0.0.0.0', () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Health check: http://localhost:${PORT}/api/health`);
   console.log(`Packets API: http://localhost:${PORT}/api/packets`);
+});
+
+// Graceful handling of server errors
+server.on('clientError', (err, socket) => {
+  console.error('[Client Connection Error]', err.message);
+  // Try to send error response
+  if (socket.writable) {
+    socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
+  }
+  // Don't crash - just log and continue
 });

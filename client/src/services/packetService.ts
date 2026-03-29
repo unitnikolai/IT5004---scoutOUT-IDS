@@ -20,17 +20,21 @@ const API_BASE_URL = process.env.REACT_APP_API_URL || getApiUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 10000,
+  timeout: 15000, // Increased timeout to handle backend processing delays
 });
 
 // Request cancellation
 let abortController = new AbortController();
 
+// Detect abort errors including DNS cancellations (ns binding)
 const isAbortError = (error: any): boolean => {
+  const message = error?.message?.toLowerCase() || '';
   return (
     error?.code === 'ECONNABORTED' ||
     error?.name === 'AbortError' ||
-    error?.message?.includes('cancel')
+    message.includes('cancel') ||
+    message.includes('ns binding') ||
+    message.includes('aborted')
   );
 };
 
