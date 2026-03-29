@@ -39,49 +39,48 @@ const Devices: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [abortController, setAbortController] = useState(new AbortController());
+
+  const fetchDevices = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`${API_BASE_URL}/devices/all`, {
+        signal: abortController.signal
+      });
+      if (!response.ok) throw new Error('Failed to fetch devices');
+      const data = await response.json();
+      const fetchedDevices = data.devices || [];
+      
+      if (fetchedDevices.length > 0) {
+        // Add to persistent cache
+        devicesCache.add(fetchedDevices);
+        
+        // Load all cached devices
+        const allCached = devicesCache.load();
+        setDevices(allCached);
+      }
+    } catch (err: any) {
+      // Silently ignore abort errors (user navigated away or request was cancelled)
+      // Includes DNS cancellations (ns binding) that occur during navigation
+      const message = err?.message?.toLowerCase() || '';
+      const isAbortError = (
+        err?.name === 'AbortError' || 
+        message.includes('abort') ||
+        message.includes('ns binding') ||
+        message.includes('cancel')
+      );
+      if (!isAbortError) {
+        console.error('Error fetching devices:', err);
+        setError('Failed to load devices');
+      }
+      // IMPORTANT: Keep existing data if available - do not wipe state on abort errors
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const abortController = new AbortController();
-
-    const fetchDevices = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch(`${API_BASE_URL}/devices/all`, {
-          signal: abortController.signal
-        });
-        if (!response.ok) throw new Error('Failed to fetch devices');
-        const data = await response.json();
-        const fetchedDevices = data.devices || [];
-        
-        if (fetchedDevices.length > 0) {
-          // Add to persistent cache
-          devicesCache.add(fetchedDevices);
-          
-          // Load all cached devices
-          const allCached = devicesCache.load();
-          setDevices(allCached);
-        }
-      } catch (err: any) {
-        // Silently ignore abort errors (user navigated away or request was cancelled)
-        // Includes DNS cancellations (ns binding) that occur during navigation
-        const message = err?.message?.toLowerCase() || '';
-        const isAbortError = (
-          err?.name === 'AbortError' || 
-          message.includes('abort') ||
-          message.includes('ns binding') ||
-          message.includes('cancel')
-        );
-        if (!isAbortError) {
-          console.error('Error fetching devices:', err);
-          setError('Failed to load devices');
-        }
-        // IMPORTANT: Keep existing data if available - do not wipe state on abort errors
-      } finally {
-        setLoading(false);
-      }
-    };
-
     // Load cached data on mount
     const cached = devicesCache.load();
     if (cached.length > 0) {
@@ -150,10 +149,12 @@ const Devices: React.FC = () => {
           {loading ? 'Loading...' : `${devices.length} device(s) found`}
           <button
             className="cache-clear-btn"
-            onClick={() => {
+            onClick={async () => {
               devicesCache.clear();
               setDevices([]);
-              console.log('[Devices] Cache cleared');
+              console.log('[Devices] Cache cleared, fetching fresh data...');
+              // Immediately fetch fresh data after clearing
+              await fetchDevices();
             }}
             title="Clear devices cache"
           >

@@ -1,7 +1,7 @@
 import { PacketData } from '../types/packet';
 
 const CACHE_KEY = 'scoutout_packets_cache';
-const MAX_CACHED_PACKETS = 1000; // Keep last 1000 packets to avoid bloating localStorage
+const MAX_CACHED_PACKETS = 500; // Keep last 500 packets to avoid bloating localStorage
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 interface CacheData {
@@ -57,8 +57,24 @@ export const packetCache = {
 
       localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
       console.log(`[packetCache] Saved ${recent.length} packets (${uniqueNew.length} new)`);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error saving packet cache:', error);
+      // If localStorage quota exceeded, clear old data and retry once
+      if (error?.name === 'QuotaExceededError' || error?.message?.includes('QuotaExceededError')) {
+        console.warn('[packetCache] Storage quota exceeded, clearing old data');
+        try {
+          localStorage.removeItem(CACHE_KEY);
+          // Retry with just the new packets
+          const cacheData: CacheData = {
+            packets: newPackets.slice(-Math.floor(MAX_CACHED_PACKETS / 2)), // Keep only half
+            timestamp: Date.now()
+          };
+          localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+          console.log('[packetCache] Recovered by reducing cache size');
+        } catch (retryError) {
+          console.error('[packetCache] Failed to recover storage:', retryError);
+        }
+      }
     }
   },
 
@@ -67,13 +83,13 @@ export const packetCache = {
    */
   addPackets(newPackets: PacketData[]): void {
     try {
-      const existing = this.loadPackets();
-      
-      if (existing.length === 0) {
-        this.savePackets(newPackets);
+      if (!newPackets || newPackets.length === 0) {
+        console.log('[packetCache] No packets to add');
         return;
       }
 
+      const existing = this.loadPackets();
+      
       // Merge avoiding duplicates
       const existingIds = new Set(existing.map(p => p.id));
       const uniqueNew = newPackets.filter(p => !existingIds.has(p.id));
@@ -92,9 +108,25 @@ export const packetCache = {
       };
 
       localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
-      console.log(`[packetCache] Added ${uniqueNew.length} new packets, total: ${recent.length}`);
-    } catch (error) {
+      console.log(`[packetCache] Added ${uniqueNew.length} new packets, total: ${recent.length}, cache size: ${(JSON.stringify(cacheData).length / 1024).toFixed(2)} KB`);
+    } catch (error: any) {
       console.error('Error adding packets to cache:', error);
+      // If localStorage quota exceeded, clear old data and retry
+      if (error?.name === 'QuotaExceededError' || error?.message?.includes('QuotaExceededError')) {
+        console.warn('[packetCache] Storage quota exceeded, clearing old data');
+        try {
+          localStorage.removeItem(CACHE_KEY);
+          // Retry with just the new packets
+          const cacheData: CacheData = {
+            packets: newPackets.slice(-Math.floor(MAX_CACHED_PACKETS / 2)), // Keep only half
+            timestamp: Date.now()
+          };
+          localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
+          console.log('[packetCache] Recovered by reducing cache size');
+        } catch (retryError) {
+          console.error('[packetCache] Failed to recover storage:', retryError);
+        }
+      }
     }
   },
 

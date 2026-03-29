@@ -37,49 +37,48 @@ const Threats: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
   const [filterSeverity, setFilterSeverity] = useState('all');
+  const [abortController, setAbortController] = useState(new AbortController());
+
+  const fetchThreats = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await fetch(`${API_BASE_URL}/threats/enhanced`, {
+        signal: abortController.signal
+      });
+      if (!response.ok) throw new Error('Failed to fetch threats');
+      const data = await response.json();
+      const fetchedThreats = data.threats || [];
+      
+      if (fetchedThreats.length > 0) {
+        // Add to persistent cache (avoids duplicates)
+        threatsCache.add(fetchedThreats);
+        
+        // Load all cached threats
+        const allCached = threatsCache.load();
+        setThreats(allCached);
+      }
+    } catch (err: any) {
+      // Silently ignore abort errors (user navigated away or request was cancelled)
+      // Includes DNS cancellations (ns binding) that occur during navigation
+      const message = err?.message?.toLowerCase() || '';
+      const isAbortError = (
+        err?.name === 'AbortError' || 
+        message.includes('abort') ||
+        message.includes('ns binding') ||
+        message.includes('cancel')
+      );
+      if (!isAbortError) {
+        console.error('Error fetching threats:', err);
+        setError('Failed to load threats');
+      }
+      // IMPORTANT: Keep existing data if available - do not wipe state on abort errors
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const abortController = new AbortController();
-
-    const fetchThreats = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await fetch(`${API_BASE_URL}/threats/enhanced`, {
-          signal: abortController.signal
-        });
-        if (!response.ok) throw new Error('Failed to fetch threats');
-        const data = await response.json();
-        const fetchedThreats = data.threats || [];
-        
-        if (fetchedThreats.length > 0) {
-          // Add to persistent cache (avoids duplicates)
-          threatsCache.add(fetchedThreats);
-          
-          // Load all cached threats
-          const allCached = threatsCache.load();
-          setThreats(allCached);
-        }
-      } catch (err: any) {
-        // Silently ignore abort errors (user navigated away or request was cancelled)
-        // Includes DNS cancellations (ns binding) that occur during navigation
-        const message = err?.message?.toLowerCase() || '';
-        const isAbortError = (
-          err?.name === 'AbortError' || 
-          message.includes('abort') ||
-          message.includes('ns binding') ||
-          message.includes('cancel')
-        );
-        if (!isAbortError) {
-          console.error('Error fetching threats:', err);
-          setError('Failed to load threats');
-        }
-        // IMPORTANT: Keep existing data if available - do not wipe state on abort errors
-      } finally {
-        setLoading(false);
-      }
-    };
-
     // Load cached data on mount
     const cached = threatsCache.load();
     if (cached.length > 0) {
@@ -141,10 +140,12 @@ const Threats: React.FC = () => {
           {loading ? 'Loading...' : `${filteredThreats.length} threat(s) detected`}
           <button
             className="cache-clear-btn"
-            onClick={() => {
+            onClick={async () => {
               threatsCache.clear();
               setThreats([]);
-              console.log('[Threats] Cache cleared');
+              console.log('[Threats] Cache cleared, fetching fresh data...');
+              // Immediately fetch fresh data after clearing
+              await fetchThreats();
             }}
             title="Clear threats cache"
           >

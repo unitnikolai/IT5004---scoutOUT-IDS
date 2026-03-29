@@ -195,13 +195,15 @@ const NetworkTraffic: React.FC = () => {
           {loading ? 'Loading...' : `${filteredPackets.length} packets loaded`}
           <button 
             className="cache-clear-btn"
-            onClick={() => {
+            onClick={async () => {
               packetCache.clearCache();
               setPackets([]);
               setProtocolData([]);
               setBandwidthData([]);
               setLastPacketCount(0);
-              console.log('[NetworkTraffic] Cache cleared');
+              console.log('[NetworkTraffic] Cache cleared, fetching fresh packets...');
+              // Immediately fetch fresh packets after clearing
+              await fetchPackets();
             }}
             title="Clear packet cache"
           >

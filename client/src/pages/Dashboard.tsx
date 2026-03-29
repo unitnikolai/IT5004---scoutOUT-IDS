@@ -160,14 +160,16 @@ const Dashboard: React.FC = () => {
         </button>
         <button
           className="cache-clear-btn"
-          onClick={() => {
+          onClick={async () => {
             dashboardCache.clear();
             setStats({ totalDevices: 0, packetsScanned: 0, threatsBlocked: 0, parentalBlocks: 0, networkHealth: 0 });
             setAlerts([]);
             setNewDevices([]);
             setTopThreats([]);
             setThreatActivity([]);
-            console.log('[Dashboard] Cache cleared');
+            console.log('[Dashboard] Cache cleared, fetching fresh data...');
+            // Immediately fetch fresh data after clearing
+            await fetchDashboardData();
           }}
           title="Clear dashboard cache"
         >

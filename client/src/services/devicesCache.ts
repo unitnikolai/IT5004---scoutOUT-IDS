@@ -1,4 +1,5 @@
 const CACHE_KEY = 'scoutout_devices_cache';
+const MAX_CACHED_DEVICES = 500; // Limit to prevent localStorage bloat
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface DevicesCacheData {
@@ -41,7 +42,7 @@ export const devicesCache = {
       const combined = [...existing, ...unique];
 
       const cacheData: DevicesCacheData = {
-        devices: combined,
+        devices: combined.slice(-MAX_CACHED_DEVICES),
         timestamp: Date.now()
       };
 

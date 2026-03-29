@@ -135,13 +135,15 @@ const Analytics: React.FC = () => {
         </button>
         <button
           className="export-btn cache-clear-btn"
-          onClick={() => {
+          onClick={async () => {
             analyticsCache.clear();
             setLogs([]);
             setThreatsPerDay([]);
             setDeviceActivity([]);
             setMostActiveDevices([]);
-            console.log('[Analytics] Cache cleared');
+            console.log('[Analytics] Cache cleared, fetching fresh data...');
+            // Immediately fetch fresh data after clearing
+            await fetchAnalyticsData();
           }}
           title="Clear analytics cache"
         >
