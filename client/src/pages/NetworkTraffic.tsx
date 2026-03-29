@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import PacketTable from '../components/PacketTable';
 import { PacketData } from '../types/packet';
 import packetService from '../services/packetService';
+import packetCache from '../services/packetCache';
 import { FiPlay, FiPause } from 'react-icons/fi';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import './NetworkTraffic.css';
@@ -51,41 +52,17 @@ const NetworkTraffic: React.FC = () => {
       const response = await packetService.getPackets({ limit: 500 });
       const fetchedPackets = response.packets || [];
       
-      // Only update if packet count changed (new packets arrived)
-      if (fetchedPackets.length !== lastPacketCount) {
-        setLastPacketCount(fetchedPackets.length);
-        setPackets(fetchedPackets);
+      if (fetchedPackets.length > 0) {
+        // Add new packets to persistent cache
+        packetCache.addPackets(fetchedPackets);
         
-        // Calculate protocol distribution
-        const protocolCounts: Record<string, number> = {};
-        fetchedPackets.forEach(packet => {
-          const proto = packet.protocol || 'Unknown';
-          protocolCounts[proto] = (protocolCounts[proto] || 0) + 1;
-        });
-        
-        const protocolChart = Object.entries(protocolCounts).map(([name, value]) => ({
-          name,
-          value,
-          color: colorMap[name] || '#999999'
-        }));
-        setProtocolData(protocolChart);
-        
-        // Calculate bandwidth by device (source IP)
-        const bandwidthCounts: Record<string, number> = {};
-        fetchedPackets.forEach(packet => {
-          const ip = packet.sourceIP || 'Unknown';
-          bandwidthCounts[ip] = (bandwidthCounts[ip] || 0) + packet.length;
-        });
-        
-        const bandwidthChart = Object.entries(bandwidthCounts)
-          .map(([device, bandwidth]) => ({
-            device,
-            bandwidth: Math.round(bandwidth / 1024) // Convert to KB
-          }))
-          .sort((a, b) => b.bandwidth - a.bandwidth)
-          .slice(0, 5); // Top 5 devices
-        
-        setBandwidthData(bandwidthChart);
+        // Load all cached packets (includes both old and new)
+        const allCachedPackets = packetCache.loadPackets();
+        setPackets(allCachedPackets);
+        setLastPacketCount(allCachedPackets.length);
+
+        // Recalculate charts based on all cached packets
+        updateCharts(allCachedPackets);
       }
     } catch (err: any) {
       // Silently ignore abort errors and DNS cancellations (user navigated away or DNS lookup cancelled)
@@ -108,10 +85,55 @@ const NetworkTraffic: React.FC = () => {
     }
   };
 
+  // Helper function to update charts
+  const updateCharts = (allPackets: PacketData[]) => {
+    // Calculate protocol distribution
+    const protocolCounts: Record<string, number> = {};
+    allPackets.forEach(packet => {
+      const proto = packet.protocol || 'Unknown';
+      protocolCounts[proto] = (protocolCounts[proto] || 0) + 1;
+    });
+    
+    const protocolChart = Object.entries(protocolCounts).map(([name, value]) => ({
+      name,
+      value,
+      color: colorMap[name] || '#999999'
+    }));
+    setProtocolData(protocolChart);
+    
+    // Calculate bandwidth by device (source IP)
+    const bandwidthCounts: Record<string, number> = {};
+    allPackets.forEach(packet => {
+      const ip = packet.sourceIP || 'Unknown';
+      bandwidthCounts[ip] = (bandwidthCounts[ip] || 0) + packet.length;
+    });
+    
+    const bandwidthChart = Object.entries(bandwidthCounts)
+      .map(([device, bandwidth]) => ({
+        device,
+        bandwidth: Math.round(bandwidth / 1024) // Convert to KB
+      }))
+      .sort((a, b) => b.bandwidth - a.bandwidth)
+      .slice(0, 5); // Top 5 devices
+    
+    setBandwidthData(bandwidthChart);
+  };
+
   useEffect(() => {
+    // Load cached packets on mount (if any exist)
+    const cachedPackets = packetCache.loadPackets();
+    if (cachedPackets.length > 0) {
+      setPackets(cachedPackets);
+      setLastPacketCount(cachedPackets.length);
+      updateCharts(cachedPackets);
+      const stats = packetCache.getStats();
+      console.log(`[NetworkTraffic] Loaded ${stats.count} cached packets (${stats.sizeKB} KB)`);
+    }
+
+    // Fetch fresh packets from backend
     fetchPackets();
     
-    // Poll for new packets every 5 seconds (only updates if count changed)
+    // Poll for new packets every 5 seconds
     const interval = setInterval(() => {
       if (isCapturing) {
         fetchPackets();
@@ -171,6 +193,20 @@ const NetworkTraffic: React.FC = () => {
 
         <div className="packets-count">
           {loading ? 'Loading...' : `${filteredPackets.length} packets loaded`}
+          <button 
+            className="cache-clear-btn"
+            onClick={() => {
+              packetCache.clearCache();
+              setPackets([]);
+              setProtocolData([]);
+              setBandwidthData([]);
+              setLastPacketCount(0);
+              console.log('[NetworkTraffic] Cache cleared');
+            }}
+            title="Clear packet cache"
+          >
+            Clear Cache
+          </button>
         </div>
       </div>
 

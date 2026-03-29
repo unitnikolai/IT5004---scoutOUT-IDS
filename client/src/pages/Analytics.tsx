@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiDownload, FiTrendingUp, FiRefreshCw } from 'react-icons/fi';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import analyticsService, { LogEntry, TimeSeriesData, TopDevice } from '../services/analyticsService';
+import analyticsCache from '../services/analyticsCache';
 import './Analytics.css';
 
 const Analytics: React.FC = () => {
@@ -25,11 +26,24 @@ const Analytics: React.FC = () => {
         analyticsService.getTopDevices()
       ]);
 
-      setLogs(logsResponse.logs || []);
-      setThreatsPerDay(threatsResponse.data || []);
-      setDeviceActivity(devicesResponse.data || []);
-      setMostActiveDevices(topDevicesResponse.data || []);
+      const logsData = logsResponse.logs || [];
+      const threatsData = threatsResponse.data || [];
+      const devicesData = devicesResponse.data || [];
+      const topDevicesData = topDevicesResponse.data || [];
+
+      setLogs(logsData);
+      setThreatsPerDay(threatsData);
+      setDeviceActivity(devicesData);
+      setMostActiveDevices(topDevicesData);
       setLastUpdated(new Date());
+      
+      // Save to persistent cache
+      analyticsCache.save({
+        logs: logsData,
+        threatsPerDay: threatsData,
+        deviceActivity: devicesData,
+        mostActiveDevices: topDevicesData
+      });
     } catch (err: any) {
       // Silently ignore abort errors (user navigated away, DNS cancelled, or request was cancelled)
       const message = err?.message?.toLowerCase() || '';
@@ -52,6 +66,16 @@ const Analytics: React.FC = () => {
   };
 
   useEffect(() => {
+    // Load cached data on mount
+    const cached = analyticsCache.load();
+    if (cached) {
+      setLogs(cached.logs);
+      setThreatsPerDay(cached.threatsPerDay);
+      setDeviceActivity(cached.deviceActivity);
+      setMostActiveDevices(cached.mostActiveDevices);
+      console.log('[Analytics] Loaded from cache');
+    }
+    
     fetchAnalyticsData();
     // Cleanup: cancel pending requests when component unmounts
     return () => {
@@ -108,6 +132,20 @@ const Analytics: React.FC = () => {
         >
           <FiRefreshCw className={loading ? 'spinning' : ''} /> 
           {loading ? 'Loading...' : 'Refresh Data'}
+        </button>
+        <button
+          className="export-btn cache-clear-btn"
+          onClick={() => {
+            analyticsCache.clear();
+            setLogs([]);
+            setThreatsPerDay([]);
+            setDeviceActivity([]);
+            setMostActiveDevices([]);
+            console.log('[Analytics] Cache cleared');
+          }}
+          title="Clear analytics cache"
+        >
+          Clear Cache
         </button>
         <button className="export-btn" onClick={() => exportLogs('csv')}>
           <FiDownload /> Export as CSV

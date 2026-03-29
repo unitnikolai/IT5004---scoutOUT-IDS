@@ -4,6 +4,52 @@
   margin: 0 auto;
 }
 
+.devices-controls {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.device-count {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 15px;
+  background: #E3F2FD;
+  border-radius: 8px;
+  color: #1976D2;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.cache-clear-btn {
+  padding: 6px 12px;
+  background: #FF9800;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  white-space: nowrap;
+}
+
+.cache-clear-btn:hover {
+  background: #F57C00;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.cache-clear-btn:active {
+  transform: translateY(0);
+}
+
 .devices-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));

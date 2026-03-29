@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiSmartphone, FiMonitor, FiWifi, FiCoffee } from 'react-icons/fi';
+import devicesCache from '../services/devicesCache';
 import './Devices.css';
 
 const getApiUrl = (): string => {
@@ -51,7 +52,16 @@ const Devices: React.FC = () => {
         });
         if (!response.ok) throw new Error('Failed to fetch devices');
         const data = await response.json();
-        setDevices(data.devices || []);
+        const fetchedDevices = data.devices || [];
+        
+        if (fetchedDevices.length > 0) {
+          // Add to persistent cache
+          devicesCache.add(fetchedDevices);
+          
+          // Load all cached devices
+          const allCached = devicesCache.load();
+          setDevices(allCached);
+        }
       } catch (err: any) {
         // Silently ignore abort errors (user navigated away or request was cancelled)
         // Includes DNS cancellations (ns binding) that occur during navigation
@@ -71,6 +81,13 @@ const Devices: React.FC = () => {
         setLoading(false);
       }
     };
+
+    // Load cached data on mount
+    const cached = devicesCache.load();
+    if (cached.length > 0) {
+      setDevices(cached);
+      console.log('[Devices] Loaded from cache');
+    }
 
     fetchDevices();
     
@@ -127,6 +144,23 @@ const Devices: React.FC = () => {
       </div>
 
       {error && <div className="error-banner">{error}</div>}
+
+      <div className="devices-controls">
+        <div className="device-count">
+          {loading ? 'Loading...' : `${devices.length} device(s) found`}
+          <button
+            className="cache-clear-btn"
+            onClick={() => {
+              devicesCache.clear();
+              setDevices([]);
+              console.log('[Devices] Cache cleared');
+            }}
+            title="Clear devices cache"
+          >
+            Clear Cache
+          </button>
+        </div>
+      </div>
 
       {loading ? (
         <div className="loading-state">

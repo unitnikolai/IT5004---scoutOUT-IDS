@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiAlertTriangle } from 'react-icons/fi';
+import threatsCache from '../services/threatsCache';
 import './Threats.css';
 
 const getApiUrl = (): string => {
@@ -49,7 +50,16 @@ const Threats: React.FC = () => {
         });
         if (!response.ok) throw new Error('Failed to fetch threats');
         const data = await response.json();
-        setThreats(data.threats || []);
+        const fetchedThreats = data.threats || [];
+        
+        if (fetchedThreats.length > 0) {
+          // Add to persistent cache (avoids duplicates)
+          threatsCache.add(fetchedThreats);
+          
+          // Load all cached threats
+          const allCached = threatsCache.load();
+          setThreats(allCached);
+        }
       } catch (err: any) {
         // Silently ignore abort errors (user navigated away or request was cancelled)
         // Includes DNS cancellations (ns binding) that occur during navigation
@@ -69,6 +79,13 @@ const Threats: React.FC = () => {
         setLoading(false);
       }
     };
+
+    // Load cached data on mount
+    const cached = threatsCache.load();
+    if (cached.length > 0) {
+      setThreats(cached);
+      console.log('[Threats] Loaded from cache');
+    }
 
     fetchThreats();
     
@@ -122,6 +139,17 @@ const Threats: React.FC = () => {
         </div>
         <div className="threat-count">
           {loading ? 'Loading...' : `${filteredThreats.length} threat(s) detected`}
+          <button
+            className="cache-clear-btn"
+            onClick={() => {
+              threatsCache.clear();
+              setThreats([]);
+              console.log('[Threats] Cache cleared');
+            }}
+            title="Clear threats cache"
+          >
+            Clear Cache
+          </button>
         </div>
       </div>
 

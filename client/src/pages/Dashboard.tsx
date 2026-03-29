@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { FiActivity, FiAlertTriangle, FiUsers, FiFilter, FiRefreshCw } from 'react-icons/fi';
 import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
 import dashboardService, { DashboardStats, Alert, NewDevice, Threat, ThreatActivity } from '../services/dashboardService';
+import dashboardCache from '../services/dashboardCache';
 import './Dashboard.css';
 
 const Dashboard: React.FC = () => {
@@ -29,12 +30,22 @@ const Dashboard: React.FC = () => {
       const data = await dashboardService.getAllData();
       console.log('Dashboard data:', data);
       
+      // Update state
       setStats(data.stats);
       setAlerts(data.alerts);
       setNewDevices(data.devices);
       setTopThreats(data.threats);
       setThreatActivity(data.activity);
       setLastUpdated(new Date());
+      
+      // Save to persistent cache
+      dashboardCache.save({
+        stats: data.stats,
+        alerts: data.alerts,
+        devices: data.devices,
+        threats: data.threats,
+        activity: data.activity
+      });
     } catch (err: any) {
       // Silently ignore abort errors (user navigated away, DNS cancelled, or request was cancelled)
       const message = err?.message?.toLowerCase() || '';
@@ -57,6 +68,18 @@ const Dashboard: React.FC = () => {
   };
 
   useEffect(() => {
+    // Load cached data on mount
+    const cached = dashboardCache.load();
+    if (cached) {
+      setStats(cached.stats);
+      setAlerts(cached.alerts);
+      setNewDevices(cached.devices);
+      setTopThreats(cached.threats);
+      setThreatActivity(cached.activity);
+      console.log('[Dashboard] Loaded from cache');
+    }
+    
+    // Fetch fresh data
     fetchDashboardData();
     // Auto-refresh every 5 seconds - with 2s cache on backend, reduces actual computation
     const interval = setInterval(fetchDashboardData, 5000);
@@ -134,6 +157,21 @@ const Dashboard: React.FC = () => {
         >
           <FiRefreshCw className={loading ? 'spinning' : ''} /> 
           {loading ? 'Loading...' : 'Refresh Data'}
+        </button>
+        <button
+          className="cache-clear-btn"
+          onClick={() => {
+            dashboardCache.clear();
+            setStats({ totalDevices: 0, packetsScanned: 0, threatsBlocked: 0, parentalBlocks: 0, networkHealth: 0 });
+            setAlerts([]);
+            setNewDevices([]);
+            setTopThreats([]);
+            setThreatActivity([]);
+            console.log('[Dashboard] Cache cleared');
+          }}
+          title="Clear dashboard cache"
+        >
+          Clear Cache
         </button>
       </div>
 

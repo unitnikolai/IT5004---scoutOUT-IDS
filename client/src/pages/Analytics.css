@@ -29,6 +29,24 @@
   background: #1976D2;
 }
 
+.refresh-btn {
+  background: #4CAF50;
+}
+
+.refresh-btn:hover {
+  background: #45a049;
+}
+
+.cache-clear-btn {
+  background: #FF9800;
+}
+
+.cache-clear-btn:hover {
+  background: #F57C00;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
 .charts-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
