@@ -14,6 +14,8 @@ services:
     build: 
       context: .
       dockerfile: server/Dockerfile.backend
+    environment:
+      - VIRUSTOTAL_API_KEY="${VIRUSTOTAL_API_KEY}"
     ports: 
       - '5050:5050'
     networks:

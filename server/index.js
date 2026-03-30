@@ -309,6 +309,97 @@ const analyzePacketsForThreats = (packets) => {
   return threats;
 };
 
+// ============================================================================
+// HTTPS PACKET ANALYSIS WITH VIRUSTOTAL
+// ============================================================================
+
+// Analyze HTTPS packets and check unique IPs against VirusTotal
+const analyzeHTTPSPacketsWithVirusTotal = async (packets) => {
+  const threats = [];
+  const checkedIPs = new Set();
+  
+  // Filter for HTTPS packets (protocol === 'HTTPS' or port 443)
+  const httpsPackets = packets.filter(p => 
+    p.protocol === 'HTTPS' || 
+    p.protocol === 'TLS' ||
+    p.destPort === 443 || 
+    p.sourcePort === 443
+  );
+  
+  if (httpsPackets.length === 0) {
+    console.log('[HTTPS Analysis] No HTTPS packets found in dataset');
+    return threats;
+  }
+  
+  console.log(`[HTTPS Analysis] Analyzing ${httpsPackets.length} HTTPS packets for unique IPs...`);
+  
+  // Extract unique destination IPs (suspicious destinations)
+  const uniqueIPs = new Set();
+  httpsPackets.forEach(packet => {
+    if (packet.destIP && !isPrivateIP(packet.destIP)) {
+      uniqueIPs.add(packet.destIP);
+    }
+    // Also check source IPs if they're potential threat sources
+    if (packet.sourceIP && !isPrivateIP(packet.sourceIP)) {
+      uniqueIPs.add(packet.sourceIP);
+    }
+  });
+  
+  const ipsToCheck = Array.from(uniqueIPs).slice(0, 50); // Limit to 50 to avoid API rate limits
+  console.log(`[HTTPS Analysis] Found ${uniqueIPs.size} unique IPs, checking ${ipsToCheck.length} with VirusTotal...`);
+  
+  // Check each unique IP with VirusTotal
+  for (const ip of ipsToCheck) {
+    if (checkedIPs.has(ip)) continue; // Skip already checked IPs
+    
+    checkedIPs.add(ip);
+    
+    try {
+      const vtReport = await checkPublicIP(ip);
+      
+      // Check if VirusTotal has results and if there are detections
+      if (vtReport && vtReport.data && vtReport.data.attributes) {
+        const stats = vtReport.data.attributes.last_analysis_stats || {};
+        const maliciousCount = stats.malicious || 0;
+        const suspiciousCount = stats.suspicious || 0;
+        
+        // Only create threats if there are actual detections
+        if (maliciousCount > 0 || suspiciousCount > 0) {
+          const severity = maliciousCount > 0 ? 'critical' : 'high';
+          
+          threats.push({
+            id: Date.now() + Math.random(),
+            timestamp: new Date().toISOString(),
+            type: 'virustotal-https',
+            message: `VirusTotal Detection: IP ${ip} flagged in HTTPS traffic`,
+            details: `VirusTotal Report - Malicious: ${maliciousCount}, Suspicious: ${suspiciousCount}, Undetected: ${stats.undetected || 0}`,
+            sourceIP: ip,
+            destIP: ip,
+            severity: severity,
+            vtReport: {
+              malicious: maliciousCount,
+              suspicious: suspiciousCount,
+              undetected: stats.undetected || 0
+            }
+          });
+          
+          console.log(`[HTTPS VirusTotal] ${ip} - Malicious: ${maliciousCount}, Suspicious: ${suspiciousCount}`);
+        }
+      } else if (vtReport && vtReport.skipped) {
+        // Private IP or skipped
+        console.debug(`[HTTPS VirusTotal] ${ip} - Skipped (${vtReport.message})`);
+      } else if (vtReport && vtReport.error) {
+        console.debug(`[HTTPS VirusTotal] ${ip} - Error: ${vtReport.error}`);
+      }
+    } catch (error) {
+      console.error(`[HTTPS VirusTotal] Error checking IP ${ip}:`, error.message);
+    }
+  }
+  
+  console.log(`[HTTPS Analysis] Found ${threats.length} threats from VirusTotal checks`);
+  return threats;
+};
+
 const analyzeDeviceActivity = (packets) => {
   const deviceMap = new Map();
   
@@ -471,11 +562,16 @@ app.get('/api/threats/enhanced', async (req, res) => {
     const threats_analysis = [];
     const checkedIPs = new Set();
 
-    // First get threats from packet analysis
+    // First get threats from packet analysis (suspicious ports, DDoS patterns, etc.)
     const basicThreats = analyzePacketsForThreats(packetsToAnalyze);
     threats_analysis.push(...basicThreats);
 
-    // Then check suspicious IPs against VirusTotal (limit to avoid API rate limits)
+    // NEW: Analyze HTTPS packets specifically with VirusTotal for IP reputation
+    console.log('[Threats] Starting HTTPS packet analysis with VirusTotal...');
+    const httpsThreats = await analyzeHTTPSPacketsWithVirusTotal(packetsToAnalyze);
+    threats_analysis.push(...httpsThreats);
+
+    // Also check suspicious IPs from other suspicious connections (legacy check)
     const suspiciousIPs = new Set();
     packetsToAnalyze.forEach(packet => {
       // Collect IPs from suspicious connections
@@ -491,17 +587,20 @@ app.get('/api/threats/enhanced', async (req, res) => {
         checkedIPs.add(ip);
         try {
           const vtReport = await checkPublicIP(ip);
-          if (vtReport && vtReport.stats && (vtReport.stats.malicious > 0 || vtReport.stats.suspicious > 0)) {
-            threats_analysis.push({
-              id: Date.now() + Math.random(),
-              timestamp: new Date().toISOString(),
-              type: 'virustotal',
-              message: `VirusTotal detection: IP ${ip} flagged (${vtReport.stats.malicious} malicious, ${vtReport.stats.suspicious} suspicious)`,
-              details: `VirusTotal report: ${vtReport.stats.malicious} malicious, ${vtReport.stats.suspicious} suspicious detections`,
-              sourceIP: ip,
-              destIP: ip,
-              severity: vtReport.stats.malicious > 0 ? 'critical' : 'high'
-            });
+          if (vtReport && vtReport.data && vtReport.data.attributes) {
+            const stats = vtReport.data.attributes.last_analysis_stats || {};
+            if ((stats.malicious || 0) > 0 || (stats.suspicious || 0) > 0) {
+              threats_analysis.push({
+                id: Date.now() + Math.random(),
+                timestamp: new Date().toISOString(),
+                type: 'virustotal-port-scan',
+                message: `VirusTotal detection: IP ${ip} flagged on suspicious port`,
+                details: `VirusTotal report: ${stats.malicious || 0} malicious, ${stats.suspicious || 0} suspicious detections`,
+                sourceIP: ip,
+                destIP: ip,
+                severity: (stats.malicious || 0) > 0 ? 'critical' : 'high'
+              });
+            }
           }
         } catch (e) {
           console.debug(`Failed to check IP ${ip} with VirusTotal:`, e.message);
@@ -518,7 +617,10 @@ app.get('/api/threats/enhanced', async (req, res) => {
       timestamp: new Date().toISOString(),
       cached: false,
       scope: fullData === 'true' ? 'full-history' : 'recent',
-      analysisScope: `${packetsToAnalyze.length} packets`
+      analysisScope: `${packetsToAnalyze.length} packets`,
+      httpsPacketsAnalyzed: packetsToAnalyze.filter(p => 
+        p.protocol === 'HTTPS' || p.protocol === 'TLS' || p.destPort === 443
+      ).length
     });
   } catch (error) {
     console.error('Enhanced threat analysis error:', error);

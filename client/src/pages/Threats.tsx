@@ -44,11 +44,31 @@ interface Threat {
   type?: string;
 }
 
+interface VirusTotalThreat extends Threat {
+  type: 'virustotal-https' | 'virustotal-port-scan';
+  vtReport?: {
+    malicious: number;
+    suspicious: number;
+    undetected: number;
+  };
+}
+
+interface IPReputation {
+  ip: string;
+  malicious: number;
+  suspicious: number;
+  undetected: number;
+  isSafe: boolean;
+  severity: 'critical' | 'high' | 'medium' | 'low';
+}
+
 const Threats: React.FC = () => {
   // Automatically cancel requests when navigating away
   useRouteCleanup();
 
   const [threats, setThreats] = useState<Threat[]>([]);
+  const [virusTotalThreats, setVirusTotalThreats] = useState<VirusTotalThreat[]>([]);
+  const [ipReputation, setIpReputation] = useState<IPReputation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
@@ -70,19 +90,59 @@ const Threats: React.FC = () => {
       const fetchedThreats = data.threats || [];
       
       if (fetchedThreats.length > 0) {
+        // Separate VirusTotal threats from other threats
+        const vtThreats = fetchedThreats.filter((t: any) => 
+          t.type === 'virustotal-https' || t.type === 'virustotal-port-scan'
+        ) as VirusTotalThreat[];
+        
+        const otherThreats = fetchedThreats.filter((t: any) => 
+          t.type !== 'virustotal-https' && t.type !== 'virustotal-port-scan'
+        );
+        
+        // Extract unique IP reputation data from VirusTotal threats
+        const ipReputationMap = new Map<string, IPReputation>();
+        vtThreats.forEach((threat) => {
+          const ip = threat.sourceIP;
+          if (!ipReputationMap.has(ip) && threat.vtReport) {
+            const malicious = threat.vtReport.malicious;
+            const suspicious = threat.vtReport.suspicious;
+            const isSafe = malicious === 0 && suspicious === 0;
+            
+            let severity: 'critical' | 'high' | 'medium' | 'low' = 'low';
+            if (malicious > 0) severity = 'critical';
+            else if (suspicious > 0) severity = 'high';
+            else if (malicious + suspicious > 0) severity = 'medium';
+            
+            ipReputationMap.set(ip, {
+              ip,
+              malicious,
+              suspicious,
+              undetected: threat.vtReport.undetected,
+              isSafe,
+              severity
+            });
+          }
+        });
+        
         // Replace cache with fresh threats
         threatsCache.replace(fetchedThreats);
-        setThreats(fetchedThreats);
+        setThreats(otherThreats);
+        setVirusTotalThreats(vtThreats);
+        setIpReputation(Array.from(ipReputationMap.values()));
       } else {
         // No threats detected - show example threat with cached threats
         const cached = threatsCache.load();
         if (cached.length === 0) {
           // No real threats and no cache - show example
           setThreats([EXAMPLE_THREAT]);
+          setVirusTotalThreats([]);
+          setIpReputation([]);
           console.log('[Threats] No real threats detected, showing example');
         } else {
           // Show cached threats
           setThreats(cached);
+          setVirusTotalThreats([]);
+          setIpReputation([]);
         }
       }
     } catch (err: any) {
@@ -175,6 +235,8 @@ const Threats: React.FC = () => {
             onClick={async () => {
               threatsCache.clear();
               setThreats([EXAMPLE_THREAT]); // Show example when cleared
+              setVirusTotalThreats([]);
+              setIpReputation([]);
               console.log('[Threats] Cache cleared, showing example threat...');
               // Immediately fetch fresh data after clearing
               await fetchThreats();
@@ -186,6 +248,63 @@ const Threats: React.FC = () => {
         </div>
       </div>
 
+      {/* VirusTotal IP Reputation Section */}
+      {ipReputation.length > 0 && (
+        <div className="virustotal-section">
+          <div className="section-header">
+            <h2>IP Reputation (VirusTotal)</h2>
+            <span className="badge">{ipReputation.length} IPs analyzed</span>
+          </div>
+          
+          <div className="ip-reputation-grid">
+            {ipReputation.map((ip) => (
+              <div 
+                key={ip.ip} 
+                className={`ip-card ${ip.isSafe ? 'safe' : 'suspicious'}`}
+              >
+                <div className="ip-header">
+                  <div className="ip-address">
+                    <span className="label">IP Address:</span>
+                    <span className="value">{ip.ip}</span>
+                  </div>
+                  <div className="safety-badge" style={{
+                    backgroundColor: ip.isSafe ? '#4CAF50' : '#D32F2F'
+                  }}>
+                    {ip.isSafe ? '✓ SAFE' : '⚠ MALICIOUS'}
+                  </div>
+                </div>
+
+                <div className="ip-stats">
+                  <div className="stat">
+                    <span className="stat-label">Malicious</span>
+                    <span className="stat-value malicious">{ip.malicious}</span>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">Suspicious</span>
+                    <span className="stat-value suspicious">{ip.suspicious}</span>
+                  </div>
+                  <div className="stat">
+                    <span className="stat-label">Undetected</span>
+                    <span className="stat-value undetected">{ip.undetected}</span>
+                  </div>
+                </div>
+
+                <div className="ip-severity">
+                  <span className="severity-label">Severity:</span>
+                  <span 
+                    className={`severity-badge ${ip.severity}`}
+                    style={{ backgroundColor: getSeverityColor(ip.severity) }}
+                  >
+                    {ip.severity.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Regular Threats Section */}
       {loading ? (
         <div className="loading-state">
           <p>Loading threats...</p>

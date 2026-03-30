@@ -1,6 +1,11 @@
 // ==================== VIRUSTOTAL INTEGRATION (IP ONLY + PRIVATE IP SKIP) ====================
 
+// Configuration
+const VT_API_KEY = process.env.VIRUSTOTAL_API_KEY;
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours cache
 
+// Simple in-memory cache for VirusTotal results
+const vtCache = new Map();
 
 // Helper: detects private/local IPs so we NEVER send them to VirusTotal
 function isPrivateIP(ip) {
