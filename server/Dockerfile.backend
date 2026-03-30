@@ -18,8 +18,11 @@ COPY package.json package-lock.json ./
 # Copy server files (as root)
 COPY server/ ./
 
+# Create packets-storage directory with proper permissions (as root)
+RUN mkdir -p /usr/src/packets-storage
+
 # Change ownership to node user
-RUN chown -R node:node /usr/src/app
+RUN chown -R node:node /usr/src/app /usr/src/packets-storage
 
 # Switch to node user
 USER node

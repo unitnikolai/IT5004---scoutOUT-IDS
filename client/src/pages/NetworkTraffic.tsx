@@ -49,11 +49,11 @@ const NetworkTraffic: React.FC = () => {
     'Unknown': '#999999'
   };
 
-  const fetchPackets = async (showLoadingOnly = true) => {
+  const fetchPackets = async (showLoadingOnEmpty = true, hasCachedData = false) => {
     try {
-      // Only show loading if we don't have any packets already
-      // This way cached packets display immediately while fetching in background
-      if (showLoadingOnly && packets.length === 0) {
+      // Only show loading if we don't have any packets already displayed
+      // Skip loading on initial mount if cached data is present (hasCachedData=true)
+      if (showLoadingOnEmpty && packets.length === 0 && !hasCachedData) {
         setLoading(true);
       }
       setError(null);
@@ -131,7 +131,9 @@ const NetworkTraffic: React.FC = () => {
   useEffect(() => {
     // Load cached packets on mount (if any exist)
     const cachedPackets = packetCache.loadPackets();
-    if (cachedPackets.length > 0) {
+    const hasCachedData = cachedPackets.length > 0;
+    
+    if (hasCachedData) {
       setPackets(cachedPackets);
       setLastPacketCount(cachedPackets.length);
       updateCharts(cachedPackets);
@@ -139,13 +141,13 @@ const NetworkTraffic: React.FC = () => {
       console.log(`[NetworkTraffic] Loaded ${stats.count} cached packets (${stats.sizeKB} KB)`);
     }
 
-    // Fetch fresh packets from backend
-    fetchPackets();
+    // Fetch fresh packets from backend (skip loading indicator if we have cached data)
+    fetchPackets(false, hasCachedData);
     
     // Poll for new packets every 5 seconds
     const interval = setInterval(() => {
       if (isCapturing) {
-        fetchPackets();
+        fetchPackets(true); // Show loading for refresh fetches
       }
     }, 5000);
     
@@ -211,8 +213,8 @@ const NetworkTraffic: React.FC = () => {
               setBandwidthData([]);
               setLastPacketCount(0);
               console.log('[NetworkTraffic] Cache cleared, fetching fresh packets...');
-              // Immediately fetch fresh packets after clearing
-              await fetchPackets();
+              // Immediately fetch fresh packets after clearing (show loading since we cleared data)
+              await fetchPackets(true, false);
             }}
             title="Clear packet cache"
           >
