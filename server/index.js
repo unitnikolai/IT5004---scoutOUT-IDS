@@ -631,106 +631,79 @@ app.get('/api/threats/enhanced', async (req, res) => {
 // Analytics API endpoints - OPTIMIZED with caching
 app.get('/api/analytics/logs', (req, res) => {
   try {
-    // Check cache first (10-second TTL)
-    let logs = getCachedData('logs');
-    if (logs) {
-      console.debug('[Logs Cache] Serving from cache');
-      return res.json({ logs, timestamp: new Date().toISOString(), cached: true });
-    }
-
-    // Cache miss - analyze ALL packets (memory + storage) for comprehensive logs
+    // Always get fresh data from storage for accuracy
     const allPackets = getAllPacketsFromStorage();
-    logs = generateActivityLogs(allPackets);
-    
-    // Cache for 10 seconds
-    setCachedData('logs', logs);
+    const logs = generateActivityLogs(allPackets);
     
     res.json({ 
-      logs, 
+      logs: logs || [],
       timestamp: new Date().toISOString(),
-      cached: false,
-      analysisScope: `recent ${recentPackets.length} packets`
+      totalPackets: allPackets.length,
+      totalLogs: logs ? logs.length : 0
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to generate analytics logs' });
+    console.error('[Analytics] Error generating logs:', error);
+    res.json({ logs: [], timestamp: new Date().toISOString(), totalPackets: 0, totalLogs: 0 });
   }
 });
 
 app.get('/api/analytics/threats-timeline', (req, res) => {
   try {
-    // Check cache first (10-second TTL)
-    let timelineData = getCachedData('timeSeries');
-    if (!timelineData) {
-      // Cache miss - analyze ALL packets (memory + storage) for comprehensive timeline
-      const allPackets = getAllPacketsFromStorage();
-      const fullTimeline = generateTimeSeriesData(allPackets, 'day');
-      timelineData = fullTimeline.slice(-7); // Last 7 days
-      setCachedData('timeSeries', timelineData);
-    } else {
-      console.debug('[Timeline Cache] Serving from cache');
-    }
+    // Always get fresh data from storage for accuracy
+    const allPackets = getAllPacketsFromStorage();
+    const fullTimeline = generateTimeSeriesData(allPackets, 'day');
+    const timelineData = fullTimeline.slice(-7); // Last 7 days
 
     res.json({ 
-      data: timelineData.map(item => ({ date: item.date, threats: item.threats })),
+      data: (timelineData || []).map(item => ({ date: item.date, threats: item.threats || 0 })),
       timestamp: new Date().toISOString(),
-      cached: !!getCachedData('timeSeries')
+      totalPackets: allPackets.length
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to generate threats timeline' });
+    console.error('[Analytics] Error generating threats timeline:', error);
+    res.json({ data: [], timestamp: new Date().toISOString(), totalPackets: 0 });
   }
 });
 
 app.get('/api/analytics/device-activity', (req, res) => {
   try {
-    // Check cache first (10-second TTL)
-    let deviceData = getCachedData('deviceActivity');
-    if (!deviceData) {
-      // Cache miss - analyze ALL packets (memory + storage) for comprehensive device activity
-      const allPackets = getAllPacketsFromStorage();
-      const fullTimeline = generateTimeSeriesData(allPackets, 'day');
-      deviceData = fullTimeline.slice(-7); // Last 7 days
-      setCachedData('deviceActivity', deviceData);
-    } else {
-      console.debug('[Device Activity Cache] Serving from cache');
-    }
+    // Always get fresh data from storage for accuracy
+    const allPackets = getAllPacketsFromStorage();
+    const fullTimeline = generateTimeSeriesData(allPackets, 'day');
+    const deviceData = fullTimeline.slice(-7); // Last 7 days
 
     res.json({ 
-      data: deviceData.map(item => ({ date: item.date, devices: item.devices })),
+      data: (deviceData || []).map(item => ({ date: item.date, devices: item.devices || 0 })),
       timestamp: new Date().toISOString(),
-      cached: !!getCachedData('deviceActivity')
+      totalPackets: allPackets.length
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to generate device activity data' });
+    console.error('[Analytics] Error generating device activity:', error);
+    res.json({ data: [], timestamp: new Date().toISOString(), totalPackets: 0 });
   }
 });
 
 app.get('/api/analytics/top-devices', (req, res) => {
   try {
-    // Check cache first (10-second TTL)
-    let topDevices = getCachedData('topDevices');
-    if (!topDevices) {
-      // Cache miss - analyze ALL packets (memory + storage) for comprehensive device stats
-      const allPackets = getAllPacketsFromStorage();
-      const devices = analyzeDeviceActivity(allPackets);
-      topDevices = devices
-        .sort((a, b) => b.packetCount - a.packetCount)
-        .slice(0, 5)
-        .map(device => ({
-          name: device.ip,
-          packets: device.packetCount
-        }));
-      setCachedData('topDevices', topDevices);
-    } else {
-      console.debug('[Top Devices Cache] Serving from cache');
-    }
+    // Always get fresh data from storage for accuracy
+    const allPackets = getAllPacketsFromStorage();
+    const devices = analyzeDeviceActivity(allPackets);
+    const topDevices = devices
+      .sort((a, b) => b.packetCount - a.packetCount)
+      .slice(0, 5)
+      .map(device => ({
+        name: device.ip,
+        packets: device.packetCount
+      }));
     
     res.json({ 
-      data: topDevices,
+      data: topDevices || [],
       timestamp: new Date().toISOString(),
-      cached: !!getCachedData('topDevices')
+      totalPackets: allPackets.length
     });
   } catch (error) {
-    res.status(500).json({ error: 'Failed to generate top devices data' });
+    console.error('[Analytics] Error generating top devices:', error);
+    res.json({ data: [], timestamp: new Date().toISOString(), totalPackets: 0 });
   }
 });
 

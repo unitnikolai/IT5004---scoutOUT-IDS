@@ -3,8 +3,6 @@ import { FiDownload, FiTrendingUp, FiRefreshCw } from 'react-icons/fi';
 import { useRouteCleanup } from '../hooks/useRouteCleanup';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import analyticsService, { LogEntry, TimeSeriesData, TopDevice } from '../services/analyticsService';
-import packetService from '../services/packetService';
-import analyticsCache from '../services/analyticsCache';
 import './Analytics.css';
 
 // Example logs for when no activity has been detected
@@ -46,10 +44,7 @@ const Analytics: React.FC = () => {
 
   const fetchAnalyticsData = async (hasCachedData: boolean = false) => {
     try {
-      // Only show loading if we have no cached data
-      if (!hasCachedData) {
-        setLoading(true);
-      }
+      setLoading(true);
       setError(null);
 
       const [logsResponse, threatsResponse, devicesResponse, topDevicesResponse] = await Promise.all([
@@ -70,28 +65,7 @@ const Analytics: React.FC = () => {
       setMostActiveDevices(topDevicesData);
       setLastUpdated(new Date());
       
-      // Save to persistent cache with current packet count
-      // This allows us to detect when new packets arrive at the backend
-      try {
-        const statsResponse = await packetService.getStats();
-        const packetCount = statsResponse?.totalPackets || 0;
-        
-        analyticsCache.save({
-          logs: logsData,
-          threatsPerDay: threatsData,
-          deviceActivity: devicesData,
-          mostActiveDevices: topDevicesData,
-          packetCount: packetCount
-        });
-      } catch (statsErr) {
-        // Stats fetch is non-critical - save cache without packet count
-        analyticsCache.save({
-          logs: logsData,
-          threatsPerDay: threatsData,
-          deviceActivity: devicesData,
-          mostActiveDevices: topDevicesData
-        });
-      }
+      console.log(`[Analytics] Fetched from backend storage: ${logsData.length} logs, ${threatsData.length} threat days, ${devicesData.length} device days, ${topDevicesData.length} top devices`);
     } catch (err: any) {
       // Silently ignore abort errors (user navigated away, DNS cancelled, or request was cancelled)
       const message = err?.message?.toLowerCase() || '';
@@ -105,56 +79,24 @@ const Analytics: React.FC = () => {
       );
       if (!isAbortError) {
         console.error('Failed to fetch analytics data:', err);
-        setError('Failed to load analytics data. Please try again.');
+        setError('Failed to load analytics data from backend. Please try again.');
       }
-      // IMPORTANT: Keep existing data on abort - never wipe state
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Load cached data on mount
-    const cached = analyticsCache.load();
-    const hasCachedData = !!(cached && (cached.logs?.length > 0 || cached.threatsPerDay?.length > 0 || 
-                                       cached.deviceActivity?.length > 0 || cached.mostActiveDevices?.length > 0));
+    // Always fetch fresh analytics data from backend storage
+    // Backend now always pulls from storage - this is the source of truth
     
-    if (cached) {
-      setLogs(cached.logs || []);
-      setThreatsPerDay(cached.threatsPerDay || []);
-      setDeviceActivity(cached.deviceActivity || []);
-      setMostActiveDevices(cached.mostActiveDevices || []);
-      console.log('[Analytics] Loaded from cache');
-    }
+    // Fetch fresh data immediately
+    fetchAnalyticsData(false);
     
-    // Check if new packets arrived since cache was saved
-    const checkAndFetchIfStale = async () => {
-      try {
-        const statsResponse = await packetService.getStats();
-        const currentPacketCount = statsResponse?.totalPackets || 0;
-        const cachedPacketCount = cached?.packetCount || 0;
-        
-        if (currentPacketCount > cachedPacketCount) {
-          // New packets arrived - fetch fresh data
-          console.log(`[Analytics] New packets detected (${cachedPacketCount} → ${currentPacketCount}). Fetching fresh data...`);
-          fetchAnalyticsData(true); // Skip loading since we have cached data
-        } else {
-          // No new packets - fetch to update cache timestamp and ensure freshness
-          fetchAnalyticsData(hasCachedData);
-        }
-      } catch (err) {
-        // If stats check fails, fetch anyway
-        console.error('[Analytics] Error checking if data is stale:', err);
-        fetchAnalyticsData(hasCachedData);
-      }
-    };
-    
-    checkAndFetchIfStale();
-    
-    // Poll for updated analytics every 3 minutes (synchronized with backend and other pages)
+    // Poll for updated analytics every 1 minute
     const interval = setInterval(() => {
-      checkAndFetchIfStale();
-    }, 180000); // 3 minutes
+      fetchAnalyticsData(false);
+    }, 60000); // 1 minute
     
     // Cleanup: cancel pending requests and clear interval when component unmounts
     return () => {
@@ -163,8 +105,13 @@ const Analytics: React.FC = () => {
     };
   }, []);
 
-  const exportLogs = (format: 'csv' | 'pdf') => {
-    alert(`Exporting logs as ${format.toUpperCase()}...`);
+  const exportLogs = async (format: 'csv') => {
+    try {
+      analyticsService.exportLogsToCSV(logs);
+    } catch (error) {
+      console.error('Error exporting logs:', error);
+      setError(`Failed to export as ${format.toUpperCase()}`);
+    }
   };
 
   const formatTimestamp = (timestamp: string) => {
@@ -197,7 +144,7 @@ const Analytics: React.FC = () => {
       {error && (
         <div className="error-banner">
           <p>{error}</p>
-          <button onClick={() => fetchAnalyticsData(true)} disabled={loading}>
+          <button onClick={() => fetchAnalyticsData(false)} disabled={loading}>
             Try Again
           </button>
         </div>
@@ -207,33 +154,14 @@ const Analytics: React.FC = () => {
       <div className="export-section">
         <button 
           className="export-btn refresh-btn" 
-          onClick={() => fetchAnalyticsData(true)} 
+          onClick={() => fetchAnalyticsData(false)} 
           disabled={loading}
         >
           <FiRefreshCw className={loading ? 'spinning' : ''} /> 
           {loading ? 'Loading...' : 'Refresh Data'}
         </button>
-        <button
-          className="export-btn cache-clear-btn"
-          onClick={async () => {
-            analyticsCache.clear();
-            setLogs([]);
-            setThreatsPerDay([]);
-            setDeviceActivity([]);
-            setMostActiveDevices([]);
-            console.log('[Analytics] Cache cleared, fetching fresh data...');
-            // Immediately fetch fresh data after clearing (show loading since we cleared data)
-            await fetchAnalyticsData(false);
-          }}
-          title="Clear analytics cache"
-        >
-          Clear Cache
-        </button>
         <button className="export-btn" onClick={() => exportLogs('csv')}>
           <FiDownload /> Export as CSV
-        </button>
-        <button className="export-btn" onClick={() => exportLogs('pdf')}>
-          <FiDownload /> Export as PDF
         </button>
       </div>
 

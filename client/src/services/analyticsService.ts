@@ -134,6 +134,40 @@ export const analyticsService = {
       throw error;
     }
   },
+
+  // Export logs to CSV
+  exportLogsToCSV(logs: LogEntry[]): void {
+    if (logs.length === 0) {
+      alert('No logs to export');
+      return;
+    }
+
+    // Create CSV header
+    const headers = ['ID', 'Timestamp', 'Type', 'Message', 'Details'];
+    const csvContent = [
+      headers.join(','),
+      ...logs.map(log => 
+        [
+          log.id,
+          `"${log.timestamp}"`,
+          log.type,
+          `"${log.message.replace(/"/g, '""')}"`,
+          `"${log.details.replace(/"/g, '""')}"`
+        ].join(',')
+      )
+    ].join('\n');
+
+    // Create blob and download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `analytics-logs-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  },
 };
 
 export default analyticsService;
