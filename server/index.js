@@ -14,6 +14,9 @@ require('dotenv').config();
 const VT_API_KEY = process.env.VIRUSTOTAL_API_KEY;
 const vtCache = new Map();
 
+// Frontend polling interval (in milliseconds) - used by Analytics & Devices pages for synchronization
+const FRONTEND_SYNC_INTERVAL = 60000; // 1 minutes
+
 // Analysis result cache to avoid redundant calculations
 const analysisCache = {
   threats: { data: null, timestamp: 0, ttl: 10000 }, // 10 second cache
@@ -533,9 +536,9 @@ app.get('/api/analytics/logs', (req, res) => {
       return res.json({ logs, timestamp: new Date().toISOString(), cached: true });
     }
 
-    // Cache miss - analyze recent packets only
-    const recentPackets = getRecentPackets(1000);
-    logs = generateActivityLogs(recentPackets);
+    // Cache miss - analyze ALL packets (memory + storage) for comprehensive logs
+    const allPackets = getAllPacketsFromStorage();
+    logs = generateActivityLogs(allPackets);
     
     // Cache for 10 seconds
     setCachedData('logs', logs);
@@ -556,9 +559,9 @@ app.get('/api/analytics/threats-timeline', (req, res) => {
     // Check cache first (10-second TTL)
     let timelineData = getCachedData('timeSeries');
     if (!timelineData) {
-      // Cache miss - analyze recent packets
-      const recentPackets = getRecentPackets(2000);
-      const fullTimeline = generateTimeSeriesData(recentPackets, 'day');
+      // Cache miss - analyze ALL packets (memory + storage) for comprehensive timeline
+      const allPackets = getAllPacketsFromStorage();
+      const fullTimeline = generateTimeSeriesData(allPackets, 'day');
       timelineData = fullTimeline.slice(-7); // Last 7 days
       setCachedData('timeSeries', timelineData);
     } else {
@@ -580,9 +583,9 @@ app.get('/api/analytics/device-activity', (req, res) => {
     // Check cache first (10-second TTL)
     let deviceData = getCachedData('deviceActivity');
     if (!deviceData) {
-      // Cache miss - analyze recent packets
-      const recentPackets = getRecentPackets(2000);
-      const fullTimeline = generateTimeSeriesData(recentPackets, 'day');
+      // Cache miss - analyze ALL packets (memory + storage) for comprehensive device activity
+      const allPackets = getAllPacketsFromStorage();
+      const fullTimeline = generateTimeSeriesData(allPackets, 'day');
       deviceData = fullTimeline.slice(-7); // Last 7 days
       setCachedData('deviceActivity', deviceData);
     } else {
@@ -604,9 +607,9 @@ app.get('/api/analytics/top-devices', (req, res) => {
     // Check cache first (10-second TTL)
     let topDevices = getCachedData('topDevices');
     if (!topDevices) {
-      // Cache miss - analyze recent packets
-      const recentPackets = getRecentPackets(1500);
-      const devices = analyzeDeviceActivity(recentPackets);
+      // Cache miss - analyze ALL packets (memory + storage) for comprehensive device stats
+      const allPackets = getAllPacketsFromStorage();
+      const devices = analyzeDeviceActivity(allPackets);
       topDevices = devices
         .sort((a, b) => b.packetCount - a.packetCount)
         .slice(0, 5)

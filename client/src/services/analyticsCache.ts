@@ -7,6 +7,7 @@ export interface AnalyticsCacheData {
   deviceActivity: any[];
   mostActiveDevices: any[];
   timestamp: number;
+  packetCount: number; // Track what packet count this cache was computed from
 }
 
 export const analyticsCache = {
@@ -37,7 +38,8 @@ export const analyticsCache = {
         threatsPerDay: [],
         deviceActivity: [],
         mostActiveDevices: [],
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        packetCount: 0
       };
 
       const updated: AnalyticsCacheData = {

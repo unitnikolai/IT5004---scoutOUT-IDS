@@ -26,9 +26,12 @@ const Dashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (hasCachedData: boolean = false) => {
     try {
-      setLoading(true);
+      // Only show loading if we have no cached data
+      if (!hasCachedData) {
+        setLoading(true);
+      }
       setError(null);
 
       const data = await dashboardService.getAllData();
@@ -74,6 +77,12 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     // Load cached data on mount
     const cached = dashboardCache.load();
+    const hasCachedData = !!(cached && (cached.stats?.packetsScanned > 0 || 
+                                       cached.alerts?.length > 0 || 
+                                       cached.devices?.length > 0 || 
+                                       cached.threats?.length > 0 || 
+                                       cached.activity?.length > 0));
+    
     if (cached) {
       setStats(cached.stats);
       setAlerts(cached.alerts);
@@ -83,10 +92,10 @@ const Dashboard: React.FC = () => {
       console.log('[Dashboard] Loaded from cache');
     }
     
-    // Fetch fresh data
-    fetchDashboardData();
+    // Fetch fresh data (skip loading indicator if we have cached data)
+    fetchDashboardData(hasCachedData);
     // Auto-refresh every 5 seconds - with 2s cache on backend, reduces actual computation
-    const interval = setInterval(fetchDashboardData, 5000);
+    const interval = setInterval(() => fetchDashboardData(true), 5000);
     
     // Cleanup: cancel pending requests and clear interval when component unmounts
     return () => {
@@ -146,7 +155,7 @@ const Dashboard: React.FC = () => {
       {error && (
         <div className="error-banner">
           <p>{error}</p>
-          <button onClick={fetchDashboardData} disabled={loading}>
+          <button onClick={() => fetchDashboardData(true)} disabled={loading}>
             Try Again
           </button>
         </div>
@@ -156,7 +165,7 @@ const Dashboard: React.FC = () => {
       <div className="dashboard-controls">
         <button 
           className="refresh-btn" 
-          onClick={fetchDashboardData} 
+          onClick={() => fetchDashboardData(true)} 
           disabled={loading}
         >
           <FiRefreshCw className={loading ? 'spinning' : ''} /> 
@@ -172,8 +181,8 @@ const Dashboard: React.FC = () => {
             setTopThreats([]);
             setThreatActivity([]);
             console.log('[Dashboard] Cache cleared, fetching fresh data...');
-            // Immediately fetch fresh data after clearing
-            await fetchDashboardData();
+            // Immediately fetch fresh data after clearing (show loading since we cleared data)
+            await fetchDashboardData(false);
           }}
           title="Clear dashboard cache"
         >

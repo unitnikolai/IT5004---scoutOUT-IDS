@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { FiSmartphone, FiMonitor, FiWifi, FiCoffee } from 'react-icons/fi';
-import { useRouteCleanup } from '../hooks/useRouteCleanup';
 import devicesCache from '../services/devicesCache';
 import './Devices.css';
 
@@ -36,71 +35,108 @@ interface Device {
 }
 
 const Devices: React.FC = () => {
-  // Automatically cancel requests when navigating away
-  useRouteCleanup();
-
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
-  const [abortController, setAbortController] = useState(new AbortController());
-
-  const fetchDevices = async (hasCachedData: boolean = false) => {
-    try {
-      // Only show loading if we have no cached data
-      if (!hasCachedData) {
-        setLoading(true);
-      }
-      setError(null);
-      const response = await fetch(`${API_BASE_URL}/devices/all`, {
-        signal: abortController.signal
-      });
-      if (!response.ok) throw new Error('Failed to fetch devices');
-      const data = await response.json();
-      const fetchedDevices = data.devices || [];
-      
-      if (fetchedDevices.length > 0) {
-        // Replace cache with fresh devices
-        devicesCache.replace(fetchedDevices);
-        setDevices(fetchedDevices);
-      }
-    } catch (err: any) {
-      // Silently ignore abort errors (user navigated away or request was cancelled)
-      // Includes DNS cancellations (ns binding) that occur during navigation
-      const message = err?.message?.toLowerCase() || '';
-      const isAbortError = (
-        err?.name === 'AbortError' || 
-        message.includes('abort') ||
-        message.includes('ns binding') ||
-        message.includes('cancel')
-      );
-      if (!isAbortError) {
-        console.error('Error fetching devices:', err);
-        setError('Failed to load devices');
-      }
-      // IMPORTANT: Keep existing data if available - do not wipe state on abort errors
-    } finally {
-      setLoading(false);
-    }
-  };
 
   useEffect(() => {
+    const abortController = new AbortController();
+
+    const fetchDevices = async (hasCachedData: boolean = false) => {
+      try {
+        // Only show loading if we have no cached data
+        if (!hasCachedData) {
+          setLoading(true);
+        }
+        setError(null);
+        const response = await fetch(`${API_BASE_URL}/devices/all`, {
+          signal: abortController.signal
+        });
+        if (!response.ok) throw new Error('Failed to fetch devices');
+        const data = await response.json();
+        const fetchedDevices = data.devices || [];
+        
+        if (fetchedDevices.length > 0) {
+          // Get current packet count to track for cache validation
+          let packetCount = 0;
+          try {
+            const statsResponse = await fetch(`${API_BASE_URL}/stats`, { signal: abortController.signal });
+            if (statsResponse.ok) {
+              const stats = await statsResponse.json();
+              packetCount = stats.totalPackets || 0;
+            }
+          } catch (err) {
+            // Stats fetch failure is non-critical
+          }
+          
+          // Replace cache with fresh devices and packet count
+          devicesCache.replace(fetchedDevices, packetCount);
+          setDevices(fetchedDevices);
+        }
+      } catch (err: any) {
+        // Silently ignore abort errors (user navigated away or request was cancelled)
+        // Includes DNS cancellations (ns binding) that occur during navigation
+        const message = err?.message?.toLowerCase() || '';
+        const isAbortError = (
+          err?.name === 'AbortError' || 
+          message.includes('abort') ||
+          message.includes('ns binding') ||
+          message.includes('cancel')
+        );
+        if (!isAbortError) {
+          console.error('Error fetching devices:', err);
+          setError('Failed to load devices');
+        }
+        // IMPORTANT: Keep existing data if available - do not wipe state on abort errors
+      } finally {
+        setLoading(false);
+      }
+    };
+
     // Load cached data on mount
-    const cached = devicesCache.load();
-    const hasCachedData = cached.length > 0;
+    const cachedData = devicesCache.loadWithMetadata();
+    const hasCachedData = (cachedData?.devices?.length || 0) > 0;
     
     if (hasCachedData) {
-      setDevices(cached);
-      console.log('[Devices] Loaded from cache:', cached.length, 'devices');
+      setDevices(cachedData!.devices);
+      console.log('[Devices] Loaded from cache:', cachedData!.devices.length, 'devices');
     }
 
-    // Fetch fresh devices (skip loading indicator if we have cached data)
-    fetchDevices(hasCachedData);
+    // Check if new packets arrived since cache was saved
+    const checkAndFetchIfStale = async () => {
+      try {
+        const statsResponse = await fetch(`${API_BASE_URL}/stats`, { signal: abortController.signal });
+        if (!statsResponse.ok) {
+          // Fetch anyway if we can't get stats
+          fetchDevices(hasCachedData);
+          return;
+        }
+        
+        const stats = await statsResponse.json();
+        const currentPacketCount = stats.totalPackets || 0;
+        const cachedPacketCount = cachedData?.packetCount || 0;
+        
+        if (currentPacketCount > cachedPacketCount) {
+          // New packets arrived - fetch fresh data
+          console.log(`[Devices] New packets detected (${cachedPacketCount} → ${currentPacketCount}). Fetching fresh data...`);
+          fetchDevices(true); // Skip loading since we have cached data
+        } else {
+          // No new packets - fetch to ensure cache is current
+          fetchDevices(hasCachedData);
+        }
+      } catch (err) {
+        // If stats check fails, fetch anyway
+        fetchDevices(hasCachedData);
+      }
+    };
+
+    checkAndFetchIfStale();
     
-    // Refresh every 10 seconds
+    // Poll for device updates every 3 minutes (synchronized with backend and Analytics page)
     const interval = setInterval(() => {
-      fetchDevices(true); // Always skip loading for polling since we keep cached data
-    }, 10000);
+      checkAndFetchIfStale();
+    }, 180000); // 3 minutes
     
     // Cleanup: cancel pending requests when component unmounts
     return () => {
@@ -158,12 +194,10 @@ const Devices: React.FC = () => {
           {loading ? 'Loading...' : `${devices.length} device(s) found`}
           <button
             className="cache-clear-btn"
-            onClick={async () => {
+            onClick={() => {
               devicesCache.clear();
               setDevices([]);
-              console.log('[Devices] Cache cleared, fetching fresh data...');
-              // Immediately fetch fresh data after clearing
-              await fetchDevices();
+              console.log('[Devices] Cache cleared');
             }}
             title="Clear devices cache"
           >

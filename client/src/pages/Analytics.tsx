@@ -44,12 +44,19 @@ const Analytics: React.FC = () => {
       setMostActiveDevices(topDevicesData);
       setLastUpdated(new Date());
       
-      // Save to persistent cache
+      // Save to persistent cache with current packet count
+      // This allows us to detect when new packets arrive at the backend
+      const statsResponse = await fetch(
+        `${process.env.REACT_APP_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`}/api/stats`
+      );
+      const stats = statsResponse.ok ? await statsResponse.json() : {};
+      
       analyticsCache.save({
         logs: logsData,
         threatsPerDay: threatsData,
         deviceActivity: devicesData,
-        mostActiveDevices: topDevicesData
+        mostActiveDevices: topDevicesData,
+        packetCount: stats.totalPackets || 0
       });
     } catch (err: any) {
       // Silently ignore abort errors (user navigated away, DNS cancelled, or request was cancelled)
@@ -86,11 +93,46 @@ const Analytics: React.FC = () => {
       console.log('[Analytics] Loaded from cache');
     }
     
-    // Fetch fresh data (skip loading indicator if we have cached data)
-    fetchAnalyticsData(hasCachedData);
+    // Check if new packets arrived since cache was saved
+    const checkAndFetchIfStale = async () => {
+      try {
+        const statsResponse = await fetch(
+          `${process.env.REACT_APP_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`}/api/stats`
+        );
+        if (!statsResponse.ok) {
+          // Fetch anyway if we can't get stats
+          fetchAnalyticsData(hasCachedData);
+          return;
+        }
+        
+        const stats = await statsResponse.json();
+        const currentPacketCount = stats.totalPackets || 0;
+        const cachedPacketCount = cached?.packetCount || 0;
+        
+        if (currentPacketCount > cachedPacketCount) {
+          // New packets arrived - fetch fresh data
+          console.log(`[Analytics] New packets detected (${cachedPacketCount} → ${currentPacketCount}). Fetching fresh data...`);
+          fetchAnalyticsData(true); // Skip loading since we have cached data
+        } else {
+          // No new packets - fetch to update cache timestamp and ensure freshness
+          fetchAnalyticsData(hasCachedData);
+        }
+      } catch (err) {
+        // If stats check fails, fetch anyway
+        fetchAnalyticsData(hasCachedData);
+      }
+    };
     
-    // Cleanup: cancel pending requests when component unmounts
+    checkAndFetchIfStale();
+    
+    // Poll for updated analytics every 3 minutes (synchronized with backend and other pages)
+    const interval = setInterval(() => {
+      checkAndFetchIfStale();
+    }, 180000); // 3 minutes
+    
+    // Cleanup: cancel pending requests and clear interval when component unmounts
     return () => {
+      clearInterval(interval);
       analyticsService.cancelRequests?.();
     };
   }, []);

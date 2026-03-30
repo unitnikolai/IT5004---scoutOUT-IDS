@@ -5,6 +5,7 @@ const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours
 export interface DevicesCacheData {
   devices: any[];
   timestamp: number;
+  packetCount: number; // Track what packet count this cache was computed from
 }
 
 export const devicesCache = {
@@ -28,6 +29,26 @@ export const devicesCache = {
     }
   },
 
+  loadWithMetadata(): DevicesCacheData | null {
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (!cached) return null;
+
+      const data: DevicesCacheData = JSON.parse(cached);
+      const now = Date.now();
+
+      if (now - data.timestamp > CACHE_TTL) {
+        this.clear();
+        return null;
+      }
+
+      return data;
+    } catch (error) {
+      console.error('Error loading devices cache:', error);
+      return null;
+    }
+  },
+
   add(devices: any[]): void {
     try {
       const existing = this.load();
@@ -43,7 +64,8 @@ export const devicesCache = {
 
       const cacheData: DevicesCacheData = {
         devices: combined.slice(-MAX_CACHED_DEVICES),
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        packetCount: 0
       };
 
       localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
@@ -53,11 +75,12 @@ export const devicesCache = {
     }
   },
 
-  replace(devices: any[]): void {
+  replace(devices: any[], packetCount: number = 0): void {
     try {
       const cacheData: DevicesCacheData = {
         devices: devices,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        packetCount: packetCount
       };
 
       localStorage.setItem(CACHE_KEY, JSON.stringify(cacheData));
