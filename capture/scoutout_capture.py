@@ -112,12 +112,14 @@ class PacketCapture:
         max_queue_size: int = 1000,
         batch_size: int = 50,
         batch_wait_time: float = 2.0,
+        filter_ports: Optional[set] = None,
     ) -> None:
         self.api_url = api_url.rstrip("/")
         self.interface = interface
         self.max_queue_size = max_queue_size
         self.batch_size = batch_size
         self.batch_wait_time = batch_wait_time
+        self.filter_ports = filter_ports or set()  # Set of ports to filter out
 
         # Internal queue — bounded so the process never OOMs
         self.packet_queue: Queue = Queue(maxsize=max_queue_size)
@@ -272,6 +274,7 @@ class PacketCapture:
                 "payload":    "",
                 "hostname":   "",
             }
+            
 
             # ── Network layer ──────────────────────────────────────────
             if IP in packet:
@@ -338,6 +341,13 @@ class PacketCapture:
 
             elif ICMP in packet:
                 data["protocol"] = "ICMP"
+
+            # ── Filter by ports if filter_ports was provided ──────────
+            if self.filter_ports:
+                source_in_filter = data["sourcePort"] in self.filter_ports
+                dest_in_filter = data["destPort"] in self.filter_ports
+                if source_in_filter or dest_in_filter:
+                    return None  # Skip packets on filtered ports
 
             # Fallback payload summary when Raw is absent
             if not data["payload"]:
@@ -673,6 +683,11 @@ def main() -> None:
         help="Network interface (omit to capture on all)",
     )
     parser.add_argument(
+        "--filter-out", "-o",
+        type=str, default=None,
+        help='Comma-separated ports to filter out (e.g. "3000,5050"). Omit flag to disable filtering.'
+    )
+    parser.add_argument(
         "--filter", "-f",
         default="",
         help='BPF capture filter, e.g. "tcp port 80"',
@@ -707,12 +722,25 @@ def main() -> None:
         logger.error("Packet capture requires root. Run: sudo python3 scoutout_capture.py")
         sys.exit(1)
 
+    # Parse filter-out ports if provided
+    filter_ports = set()
+    if args.filter_out:
+        try:
+            filter_ports = set(
+                int(port.strip()) for port in args.filter_out.split(',')
+            )
+            logger.info("Filtering out packets on ports: %s", sorted(filter_ports))
+        except ValueError:
+            logger.error("Invalid --filter-out format. Use comma-separated integers, e.g. '3000,5050'")
+            sys.exit(1)
+
     capture = PacketCapture(
         api_url=args.api_url,
         interface=args.interface,
         max_queue_size=args.queue_size,
         batch_size=args.batch_size,
         batch_wait_time=args.batch_wait_time,
+        filter_ports=filter_ports,
     )
 
     success = capture.start(args.filter)
