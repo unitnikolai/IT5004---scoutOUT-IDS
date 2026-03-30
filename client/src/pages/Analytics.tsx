@@ -3,8 +3,34 @@ import { FiDownload, FiTrendingUp, FiRefreshCw } from 'react-icons/fi';
 import { useRouteCleanup } from '../hooks/useRouteCleanup';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import analyticsService, { LogEntry, TimeSeriesData, TopDevice } from '../services/analyticsService';
+import packetService from '../services/packetService';
 import analyticsCache from '../services/analyticsCache';
 import './Analytics.css';
+
+// Example logs for when no activity has been detected
+const EXAMPLE_LOGS: LogEntry[] = [
+  {
+    id: 9999,
+    timestamp: new Date().toISOString(),
+    type: 'device',
+    message: 'New Device Detected (Example)',
+    details: 'Device 192.168.1.50 connected to network'
+  },
+  {
+    id: 9998,
+    timestamp: new Date(Date.now() - 3600000).toISOString(),
+    type: 'threat',
+    message: 'Suspicious Port Scan Detected (Example)',
+    details: 'Multiple connection attempts detected on port 22 from unknown source'
+  },
+  {
+    id: 9997,
+    timestamp: new Date(Date.now() - 7200000).toISOString(),
+    type: 'parental',
+    message: 'Restricted Content Blocked (Example)',
+    details: 'Content from domain example-adult-site.com was blocked per parental controls'
+  }
+];
 
 const Analytics: React.FC = () => {
   // Automatically cancel requests when navigating away
@@ -46,18 +72,26 @@ const Analytics: React.FC = () => {
       
       // Save to persistent cache with current packet count
       // This allows us to detect when new packets arrive at the backend
-      const statsResponse = await fetch(
-        `${process.env.REACT_APP_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`}/api/stats`
-      );
-      const stats = statsResponse.ok ? await statsResponse.json() : {};
-      
-      analyticsCache.save({
-        logs: logsData,
-        threatsPerDay: threatsData,
-        deviceActivity: devicesData,
-        mostActiveDevices: topDevicesData,
-        packetCount: stats.totalPackets || 0
-      });
+      try {
+        const statsResponse = await packetService.getStats();
+        const packetCount = statsResponse?.totalPackets || 0;
+        
+        analyticsCache.save({
+          logs: logsData,
+          threatsPerDay: threatsData,
+          deviceActivity: devicesData,
+          mostActiveDevices: topDevicesData,
+          packetCount: packetCount
+        });
+      } catch (statsErr) {
+        // Stats fetch is non-critical - save cache without packet count
+        analyticsCache.save({
+          logs: logsData,
+          threatsPerDay: threatsData,
+          deviceActivity: devicesData,
+          mostActiveDevices: topDevicesData
+        });
+      }
     } catch (err: any) {
       // Silently ignore abort errors (user navigated away, DNS cancelled, or request was cancelled)
       const message = err?.message?.toLowerCase() || '';
@@ -96,17 +130,8 @@ const Analytics: React.FC = () => {
     // Check if new packets arrived since cache was saved
     const checkAndFetchIfStale = async () => {
       try {
-        const statsResponse = await fetch(
-          `${process.env.REACT_APP_API_URL || `${window.location.protocol}//${window.location.hostname}:5050`}/api/stats`
-        );
-        if (!statsResponse.ok) {
-          // Fetch anyway if we can't get stats
-          fetchAnalyticsData(hasCachedData);
-          return;
-        }
-        
-        const stats = await statsResponse.json();
-        const currentPacketCount = stats.totalPackets || 0;
+        const statsResponse = await packetService.getStats();
+        const currentPacketCount = statsResponse?.totalPackets || 0;
         const cachedPacketCount = cached?.packetCount || 0;
         
         if (currentPacketCount > cachedPacketCount) {
@@ -119,6 +144,7 @@ const Analytics: React.FC = () => {
         }
       } catch (err) {
         // If stats check fails, fetch anyway
+        console.error('[Analytics] Error checking if data is stale:', err);
         fetchAnalyticsData(hasCachedData);
       }
     };
@@ -270,7 +296,7 @@ const Analytics: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {logs.map(log => (
+              {(logs.length === 0 ? EXAMPLE_LOGS : logs).map(log => (
                 <tr key={log.id}>
                   <td>{formatTimestamp(log.timestamp)}</td>
                   <td>
