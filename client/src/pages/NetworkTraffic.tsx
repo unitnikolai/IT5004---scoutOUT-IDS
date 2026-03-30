@@ -49,10 +49,15 @@ const NetworkTraffic: React.FC = () => {
     'Unknown': '#999999'
   };
 
-  const fetchPackets = async () => {
+  const fetchPackets = async (showLoadingOnly = true) => {
     try {
-      setLoading(true);
+      // Only show loading if we don't have any packets already
+      // This way cached packets display immediately while fetching in background
+      if (showLoadingOnly && packets.length === 0) {
+        setLoading(true);
+      }
       setError(null);
+      
       const response = await packetService.getPackets({ limit: 500 });
       const fetchedPackets = response.packets || [];
       
