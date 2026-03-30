@@ -12,6 +12,10 @@ const CLEANUP_INTERVAL = 60000; // Run cleanup every minute
 const PACKETS_DIR = path.join(__dirname, '../packets-storage');
 const PACKETS_INDEX = path.join(PACKETS_DIR, 'packets-index.json');
 
+// Filter configuration - exclude packets from server services
+const SERVER_PORTS = [3000, 5050]; // Frontend: 3000, Backend: 5050
+const SERVER_IP = process.env.SERVER_IP || '192.168.4.115'; // Can be overridden via environment variable
+
 // Ensure storage directory exists
 if (!fs.existsSync(PACKETS_DIR)) {
     fs.mkdirSync(PACKETS_DIR, { recursive: true });
@@ -23,7 +27,29 @@ if (!fs.existsSync(PACKETS_INDEX)) {
     fs.writeFileSync(PACKETS_INDEX, JSON.stringify({ files: [], totalCount: 0 }));
 }
 
+// Helper function to check if packet should be filtered (excluded)
+function shouldFilterPacket(packet) {
+    if (!packet) return true;
+    
+    // Check if source port is a server port
+    if (SERVER_PORTS.includes(packet.sourcePort)) {
+        return true;
+    }
+    
+    // Check if destination port is a server port
+    if (SERVER_PORTS.includes(packet.destPort)) {
+        return true;
+    }
+    
+    return false;
+}
+
 function addPacket(packet) {
+    // Filter out packets from server services (ports 3000 and 5050)
+    if (shouldFilterPacket(packet)) {
+        return; // Skip this packet
+    }
+    
     // Push to memory
     packets.push(packet);
     

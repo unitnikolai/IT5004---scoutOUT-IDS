@@ -49,6 +49,35 @@ const NetworkTraffic: React.FC = () => {
     'Unknown': '#999999'
   };
 
+  const fetchProtocolDistribution = async () => {
+    try {
+      // Fetch protocol distribution stats from backend (uses ALL packets from memory + storage)
+      const stats = await packetService.getStats();
+      if (stats.protocolDistribution) {
+        const protocolChart = Object.entries(stats.protocolDistribution).map(([name, value]) => ({
+          name,
+          value: value as number,
+          color: colorMap[name] || '#999999'
+        }));
+        setProtocolData(protocolChart);
+      }
+    } catch (err: any) {
+      // Silently ignore abort errors
+      const message = err?.message?.toLowerCase() || '';
+      const isAbortError = (
+        err?.code === 'ECONNABORTED' || 
+        err?.code === 'ERR_CANCELED' ||
+        err?.name === 'AbortError' || 
+        message.includes('cancel') ||
+        message.includes('abort') ||
+        message.includes('ns binding')
+      );
+      if (!isAbortError) {
+        console.error('Failed to fetch protocol distribution:', err);
+      }
+    }
+  };
+
   const fetchPackets = async (showLoadingOnEmpty = true, hasCachedData = false) => {
     try {
       // Only show loading if we don't have any packets already displayed
@@ -70,7 +99,10 @@ const NetworkTraffic: React.FC = () => {
         setPackets(allCachedPackets);
         setLastPacketCount(allCachedPackets.length);
 
-        // Recalculate charts based on all cached packets
+        // Fetch protocol distribution from backend (uses ALL packets ever)
+        await fetchProtocolDistribution();
+        
+        // Recalculate bandwidth by device based on cached packets
         updateCharts(allCachedPackets);
       }
     } catch (err: any) {
@@ -94,22 +126,8 @@ const NetworkTraffic: React.FC = () => {
     }
   };
 
-  // Helper function to update charts
+  // Helper function to update charts (bandwidth only - protocol distribution comes from backend)
   const updateCharts = (allPackets: PacketData[]) => {
-    // Calculate protocol distribution
-    const protocolCounts: Record<string, number> = {};
-    allPackets.forEach(packet => {
-      const proto = packet.protocol || 'Unknown';
-      protocolCounts[proto] = (protocolCounts[proto] || 0) + 1;
-    });
-    
-    const protocolChart = Object.entries(protocolCounts).map(([name, value]) => ({
-      name,
-      value,
-      color: colorMap[name] || '#999999'
-    }));
-    setProtocolData(protocolChart);
-    
     // Calculate bandwidth by device (source IP)
     const bandwidthCounts: Record<string, number> = {};
     allPackets.forEach(packet => {
@@ -141,6 +159,9 @@ const NetworkTraffic: React.FC = () => {
       console.log(`[NetworkTraffic] Loaded ${stats.count} cached packets (${stats.sizeKB} KB)`);
     }
 
+    // Fetch protocol distribution from backend (uses ALL packets ever)
+    fetchProtocolDistribution();
+
     // Fetch fresh packets from backend (skip loading indicator if we have cached data)
     fetchPackets(false, hasCachedData);
     
@@ -162,11 +183,13 @@ const NetworkTraffic: React.FC = () => {
     setIsCapturing(!isCapturing);
   };
 
-  const filteredPackets = packets.filter(packet => {
-    if (filterDevice && packet.sourceIP !== filterDevice) return false;
-    if (filterProtocol && packet.protocol.toLowerCase() !== filterProtocol.toLowerCase()) return false;
-    return true;
-  });
+  const filteredPackets = packets
+    .filter(packet => {
+      if (filterDevice && packet.sourceIP !== filterDevice) return false;
+      if (filterProtocol && packet.protocol.toLowerCase() !== filterProtocol.toLowerCase()) return false;
+      return true;
+    })
+    .reverse(); // Show newest packets first (reverse ID order)
 
   return (
     <div className="network-traffic-page">
@@ -215,6 +238,8 @@ const NetworkTraffic: React.FC = () => {
               console.log('[NetworkTraffic] Cache cleared, fetching fresh packets...');
               // Immediately fetch fresh packets after clearing (show loading since we cleared data)
               await fetchPackets(true, false);
+              // Also fetch protocol distribution from backend
+              await fetchProtocolDistribution();
             }}
             title="Clear packet cache"
           >

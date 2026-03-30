@@ -44,8 +44,13 @@ function getCachedData(key) {
 function setCachedData(key, data) {
   analysisCache[key].data = data;
   analysisCache[key].timestamp = Date.now();
-} 
+}
 
+// Helper function to check if an IP address is internal/private
+function isInternalDevice(ip) {
+  // Use the virustotal helper function to check if IP is private
+  return isPrivateIP(ip);
+}
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Rate limiting - separate limiters for different endpoints
@@ -688,15 +693,18 @@ app.get('/api/devices/all', (req, res) => {
       };
     });
 
+    // Filter out external devices - keep only internal/private IP devices
+    const internalDevices = fullDevices.filter(device => isInternalDevice(device.ip));
+
     // Cache the result for 10 seconds
-    setCachedData('devices', { devices: fullDevices, total: fullDevices.length });
+    setCachedData('devices', { devices: internalDevices, total: internalDevices.length });
 
     res.json({ 
-      devices: fullDevices,
-      total: fullDevices.length,
+      devices: internalDevices,
+      total: internalDevices.length,
       timestamp: new Date().toISOString(),
       cached: false,
-      analysisScope: `recent ${recentPackets.length} packets`
+      analysisScope: `recent ${recentPackets.length} packets, internal devices only`
     });
   } catch (error) {
     console.error('Failed to fetch devices:', error);
@@ -705,19 +713,19 @@ app.get('/api/devices/all', (req, res) => {
 });
 
 // Dashboard-specific endpoints
-const generateDashboardStats = (packets) => {
+const generateDashboardStats = (packets, allTimePacketCount) => {
   const devices = analyzeDeviceActivity(packets);
   const threats = analyzePacketsForThreats(packets);
   const parentalLogs = 3; // Mock parental control blocks
   
-  // Calculate network health based on threat ratio and device activity
+  // Calculate network health based on threat ratio and device activity (using recent packets)
   const threatRatio = threats.length / Math.max(packets.length, 1);
   const baseHealth = Math.max(60, 100 - (threatRatio * 200));
   const networkHealth = Math.min(100, Math.round(baseHealth + Math.random() * 10));
   
   return {
     totalDevices: devices.length,
-    packetsScanned: packets.length,
+    packetsScanned: allTimePacketCount || packets.length, // Use all-time total if provided
     threatsBlocked: threats.length,
     parentalBlocks: parentalLogs,
     networkHealth: networkHealth
@@ -856,9 +864,11 @@ app.get('/api/dashboard/stats', (req, res) => {
       return res.json({ stats: dashboardCache.stats, timestamp: new Date().toISOString(), cached: true });
     }
 
-    // Analyze only recent packets (1500 packet limit)
+    // Analyze threats on recent packets, but show all-time packet count
     const recentPackets = getRecentPackets(1500);
-    const stats = generateDashboardStats(recentPackets);
+    const allPackets = getAllPacketsFromStorage();
+    const allTimePacketCount = allPackets.length;
+    const stats = generateDashboardStats(recentPackets, allTimePacketCount);
     dashboardCache.stats = stats;
     dashboardCache.timestamp = now;
     
@@ -866,7 +876,7 @@ app.get('/api/dashboard/stats', (req, res) => {
       stats, 
       timestamp: new Date().toISOString(),
       cached: false,
-      analysisScope: `recent ${recentPackets.length} packets`
+      analysisScope: `recent ${recentPackets.length} packets, all-time total ${allTimePacketCount}`
     });
   } catch (error) {
     console.error('[Dashboard Stats] Error:', error);
