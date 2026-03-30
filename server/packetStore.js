@@ -46,9 +46,9 @@ function shouldFilterPacket(packet) {
 
 function addPacket(packet) {
     // Filter out packets from server services (ports 3000 and 5050)
-    if (shouldFilterPacket(packet)) {
-        return; // Skip this packet
-    }
+    // if (shouldFilterPacket(packet)) {
+    //     return; // Skip this packet
+    // }
     
     // Push to memory
     packets.push(packet);

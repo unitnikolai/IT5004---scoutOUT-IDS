@@ -18,9 +18,12 @@ const Analytics: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const fetchAnalyticsData = async () => {
+  const fetchAnalyticsData = async (hasCachedData: boolean = false) => {
     try {
-      setLoading(true);
+      // Only show loading if we have no cached data
+      if (!hasCachedData) {
+        setLoading(true);
+      }
       setError(null);
 
       const [logsResponse, threatsResponse, devicesResponse, topDevicesResponse] = await Promise.all([
@@ -72,15 +75,20 @@ const Analytics: React.FC = () => {
   useEffect(() => {
     // Load cached data on mount
     const cached = analyticsCache.load();
+    const hasCachedData = !!(cached && (cached.logs?.length > 0 || cached.threatsPerDay?.length > 0 || 
+                                       cached.deviceActivity?.length > 0 || cached.mostActiveDevices?.length > 0));
+    
     if (cached) {
-      setLogs(cached.logs);
-      setThreatsPerDay(cached.threatsPerDay);
-      setDeviceActivity(cached.deviceActivity);
-      setMostActiveDevices(cached.mostActiveDevices);
+      setLogs(cached.logs || []);
+      setThreatsPerDay(cached.threatsPerDay || []);
+      setDeviceActivity(cached.deviceActivity || []);
+      setMostActiveDevices(cached.mostActiveDevices || []);
       console.log('[Analytics] Loaded from cache');
     }
     
-    fetchAnalyticsData();
+    // Fetch fresh data (skip loading indicator if we have cached data)
+    fetchAnalyticsData(hasCachedData);
+    
     // Cleanup: cancel pending requests when component unmounts
     return () => {
       analyticsService.cancelRequests?.();
@@ -121,7 +129,7 @@ const Analytics: React.FC = () => {
       {error && (
         <div className="error-banner">
           <p>{error}</p>
-          <button onClick={fetchAnalyticsData} disabled={loading}>
+          <button onClick={() => fetchAnalyticsData(true)} disabled={loading}>
             Try Again
           </button>
         </div>
@@ -131,7 +139,7 @@ const Analytics: React.FC = () => {
       <div className="export-section">
         <button 
           className="export-btn refresh-btn" 
-          onClick={fetchAnalyticsData} 
+          onClick={() => fetchAnalyticsData(true)} 
           disabled={loading}
         >
           <FiRefreshCw className={loading ? 'spinning' : ''} /> 
@@ -146,8 +154,8 @@ const Analytics: React.FC = () => {
             setDeviceActivity([]);
             setMostActiveDevices([]);
             console.log('[Analytics] Cache cleared, fetching fresh data...');
-            // Immediately fetch fresh data after clearing
-            await fetchAnalyticsData();
+            // Immediately fetch fresh data after clearing (show loading since we cleared data)
+            await fetchAnalyticsData(false);
           }}
           title="Clear analytics cache"
         >

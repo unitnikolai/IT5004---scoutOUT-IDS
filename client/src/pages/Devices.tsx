@@ -45,9 +45,12 @@ const Devices: React.FC = () => {
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
   const [abortController, setAbortController] = useState(new AbortController());
 
-  const fetchDevices = async () => {
+  const fetchDevices = async (hasCachedData: boolean = false) => {
     try {
-      setLoading(true);
+      // Only show loading if we have no cached data
+      if (!hasCachedData) {
+        setLoading(true);
+      }
       setError(null);
       const response = await fetch(`${API_BASE_URL}/devices/all`, {
         signal: abortController.signal
@@ -57,12 +60,9 @@ const Devices: React.FC = () => {
       const fetchedDevices = data.devices || [];
       
       if (fetchedDevices.length > 0) {
-        // Add to persistent cache
-        devicesCache.add(fetchedDevices);
-        
-        // Load all cached devices
-        const allCached = devicesCache.load();
-        setDevices(allCached);
+        // Replace cache with fresh devices
+        devicesCache.replace(fetchedDevices);
+        setDevices(fetchedDevices);
       }
     } catch (err: any) {
       // Silently ignore abort errors (user navigated away or request was cancelled)
@@ -87,15 +87,20 @@ const Devices: React.FC = () => {
   useEffect(() => {
     // Load cached data on mount
     const cached = devicesCache.load();
-    if (cached.length > 0) {
+    const hasCachedData = cached.length > 0;
+    
+    if (hasCachedData) {
       setDevices(cached);
-      console.log('[Devices] Loaded from cache');
+      console.log('[Devices] Loaded from cache:', cached.length, 'devices');
     }
 
-    fetchDevices();
+    // Fetch fresh devices (skip loading indicator if we have cached data)
+    fetchDevices(hasCachedData);
     
     // Refresh every 10 seconds
-    const interval = setInterval(fetchDevices, 10000);
+    const interval = setInterval(() => {
+      fetchDevices(true); // Always skip loading for polling since we keep cached data
+    }, 10000);
     
     // Cleanup: cancel pending requests when component unmounts
     return () => {

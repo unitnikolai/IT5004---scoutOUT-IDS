@@ -21,6 +21,18 @@ const getApiUrl = (): string => {
 
 const API_BASE_URL = getApiUrl();
 
+// Default example threat for when no threats are detected
+const EXAMPLE_THREAT: Threat = {
+  id: 9999,
+  message: 'Suspicious Port Scan Detected (Example)',
+  details: 'Multiple connection attempts detected on port 22 (SSH) from unknown source',
+  sourceIP: '192.168.1.105',
+  destIP: '192.168.1.1',
+  severity: 'medium',
+  timestamp: new Date().toISOString(),
+  type: 'port-scan'
+};
+
 interface Threat {
   id: number;
   message: string;
@@ -43,9 +55,12 @@ const Threats: React.FC = () => {
   const [filterSeverity, setFilterSeverity] = useState('all');
   const [abortController, setAbortController] = useState(new AbortController());
 
-  const fetchThreats = async () => {
+  const fetchThreats = async (hasCachedData: boolean = false) => {
     try {
-      setLoading(true);
+      // Only show loading if we have no cached data
+      if (!hasCachedData) {
+        setLoading(true);
+      }
       setError(null);
       const response = await fetch(`${API_BASE_URL}/threats/enhanced`, {
         signal: abortController.signal
@@ -55,12 +70,20 @@ const Threats: React.FC = () => {
       const fetchedThreats = data.threats || [];
       
       if (fetchedThreats.length > 0) {
-        // Add to persistent cache (avoids duplicates)
-        threatsCache.add(fetchedThreats);
-        
-        // Load all cached threats
-        const allCached = threatsCache.load();
-        setThreats(allCached);
+        // Replace cache with fresh threats
+        threatsCache.replace(fetchedThreats);
+        setThreats(fetchedThreats);
+      } else {
+        // No threats detected - show example threat with cached threats
+        const cached = threatsCache.load();
+        if (cached.length === 0) {
+          // No real threats and no cache - show example
+          setThreats([EXAMPLE_THREAT]);
+          console.log('[Threats] No real threats detected, showing example');
+        } else {
+          // Show cached threats
+          setThreats(cached);
+        }
       }
     } catch (err: any) {
       // Silently ignore abort errors (user navigated away or request was cancelled)
@@ -85,15 +108,20 @@ const Threats: React.FC = () => {
   useEffect(() => {
     // Load cached data on mount
     const cached = threatsCache.load();
-    if (cached.length > 0) {
+    const hasCachedData = cached.length > 0;
+    
+    if (hasCachedData) {
       setThreats(cached);
-      console.log('[Threats] Loaded from cache');
+      console.log('[Threats] Loaded from cache:', cached.length, 'threats');
     }
 
-    fetchThreats();
+    // Fetch fresh threats (skip loading indicator if we have cached data)
+    fetchThreats(hasCachedData);
     
     // Refresh every 10 seconds
-    const interval = setInterval(fetchThreats, 10000);
+    const interval = setInterval(() => {
+      fetchThreats(true); // Always skip loading for polling since we keep cached data
+    }, 10000);
     
     // Cleanup: cancel pending requests when component unmounts
     return () => {
@@ -146,8 +174,8 @@ const Threats: React.FC = () => {
             className="cache-clear-btn"
             onClick={async () => {
               threatsCache.clear();
-              setThreats([]);
-              console.log('[Threats] Cache cleared, fetching fresh data...');
+              setThreats([EXAMPLE_THREAT]); // Show example when cleared
+              console.log('[Threats] Cache cleared, showing example threat...');
               // Immediately fetch fresh data after clearing
               await fetchThreats();
             }}
