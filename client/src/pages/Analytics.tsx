@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { FiDownload, FiTrendingUp, FiRefreshCw } from 'react-icons/fi';
+import { useRouteCleanup } from '../hooks/useRouteCleanup';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import analyticsService, { LogEntry, TimeSeriesData, TopDevice } from '../services/analyticsService';
 import analyticsCache from '../services/analyticsCache';
 import './Analytics.css';
 
 const Analytics: React.FC = () => {
+  // Automatically cancel requests when navigating away
+  useRouteCleanup();
+
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [threatsPerDay, setThreatsPerDay] = useState<TimeSeriesData[]>([]);
   const [deviceActivity, setDeviceActivity] = useState<TimeSeriesData[]>([]);

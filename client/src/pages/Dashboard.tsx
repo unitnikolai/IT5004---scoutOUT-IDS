@@ -1,11 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { FiActivity, FiAlertTriangle, FiUsers, FiFilter, FiRefreshCw } from 'react-icons/fi';
 import { LineChart, Line, ResponsiveContainer, Tooltip } from 'recharts';
+import { useRouteCleanup } from '../hooks/useRouteCleanup';
 import dashboardService, { DashboardStats, Alert, NewDevice, Threat, ThreatActivity } from '../services/dashboardService';
 import dashboardCache from '../services/dashboardCache';
 import './Dashboard.css';
 
 const Dashboard: React.FC = () => {
+  // Automatically cancel requests when navigating away
+  useRouteCleanup();
+
   const [stats, setStats] = useState<DashboardStats>({
     totalDevices: 0,
     packetsScanned: 0,

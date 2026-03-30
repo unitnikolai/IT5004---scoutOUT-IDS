@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { FiSmartphone, FiMonitor, FiWifi, FiCoffee } from 'react-icons/fi';
+import { useRouteCleanup } from '../hooks/useRouteCleanup';
 import devicesCache from '../services/devicesCache';
 import './Devices.css';
 
@@ -35,6 +36,9 @@ interface Device {
 }
 
 const Devices: React.FC = () => {
+  // Automatically cancel requests when navigating away
+  useRouteCleanup();
+
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

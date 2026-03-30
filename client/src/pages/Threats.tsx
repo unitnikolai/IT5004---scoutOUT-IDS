@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useRouteCleanup } from '../hooks/useRouteCleanup';
 import { FiAlertTriangle } from 'react-icons/fi';
 import threatsCache from '../services/threatsCache';
 import './Threats.css';
@@ -32,6 +33,9 @@ interface Threat {
 }
 
 const Threats: React.FC = () => {
+  // Automatically cancel requests when navigating away
+  useRouteCleanup();
+
   const [threats, setThreats] = useState<Threat[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

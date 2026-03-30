@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PacketTable from '../components/PacketTable';
 import { PacketData } from '../types/packet';
+import { useRouteCleanup } from '../hooks/useRouteCleanup';
 import packetService from '../services/packetService';
 import packetCache from '../services/packetCache';
 import { FiPlay, FiPause } from 'react-icons/fi';
@@ -21,6 +22,9 @@ interface BandwidthData {
 }
 
 const NetworkTraffic: React.FC = () => {
+  // Automatically cancel requests when navigating away
+  useRouteCleanup();
+
   const [isCapturing, setIsCapturing] = useState(true);
   const [filterDevice, setFilterDevice] = useState('');
   const [filterProtocol, setFilterProtocol] = useState('');

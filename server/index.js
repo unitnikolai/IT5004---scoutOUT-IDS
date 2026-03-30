@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const { addPacket, getPackets } = require('./packetStore.js');
+const { addPacket, getPackets, getRecentPackets, getPacketCount, getAllPacketsFromStorage, getStoragePacketCount, clearStorage } = require('./packetStore.js');
 const { isPrivateIP, checkPublicIP } = require('./virustotal.js');
 const app = express();
 const PORT = process.env.PORT || 5050;
@@ -12,7 +12,39 @@ app.use(express.json());
 require('dotenv').config();
 
 const VT_API_KEY = process.env.VIRUSTOTAL_API_KEY;
-const vtCache = new Map(); 
+const vtCache = new Map();
+
+// Analysis result cache to avoid redundant calculations
+const analysisCache = {
+  threats: { data: null, timestamp: 0, ttl: 10000 }, // 10 second cache
+  devices: { data: null, timestamp: 0, ttl: 10000 },
+  timeSeries: { data: null, timestamp: 0, ttl: 10000 },
+  logs: { data: null, timestamp: 0, ttl: 10000 },
+  stats: { data: null, timestamp: 0, ttl: 10000 },
+  lastPacketCount: 0
+};
+
+function invalidateCache() {
+  // Invalidate all caches when new packets arrive
+  analysisCache.threats.data = null;
+  analysisCache.devices.data = null;
+  analysisCache.timeSeries.data = null;
+  analysisCache.logs.data = null;
+  analysisCache.stats.data = null;
+}
+
+function getCachedData(key) {
+  const cached = analysisCache[key];
+  if (cached && cached.data && (Date.now() - cached.timestamp < cached.ttl)) {
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedData(key, data) {
+  analysisCache[key].data = data;
+  analysisCache[key].timestamp = Date.now();
+} 
 
 
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
@@ -60,7 +92,12 @@ app.post('/api/packets/', batchLimiter, (req, res) => {
       }
     });
     
-    console.log(`[Batch Receiver] Added ${added}/${packets.length} packets. Total in store: ${require('./packetStore.js').getPackets().length}`);
+    // Invalidate analysis cache on new packets
+    if (added > 0) {
+      invalidateCache();
+    }
+    
+    console.log(`[Batch Receiver] Added ${added}/${packets.length} packets. Total in store: ${getPacketCount()}`);
     
     // IMPORTANT: Only attempt to write response if:
     // 1. Headers haven't been sent yet
@@ -105,11 +142,42 @@ app.get('/api/packets', (req, res) => {
   // Apply limit
   packets = packets.slice(0, parseInt(limit));
   
+  // Include storage info
+  const storageInfo = getStoragePacketCount();
+  
   res.json({
     packets,
     total: packets.length,
+    storage: storageInfo,
     timestamp: new Date().toISOString()
   });
+});
+
+// New endpoint for storage statistics
+app.get('/api/storage/stats', (req, res) => {
+  try {
+    const stats = getStoragePacketCount();
+    res.json({ 
+      stats,
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to get storage stats' });
+  }
+});
+
+// New endpoint to clear storage
+app.post('/api/storage/clear', (req, res) => {
+  try {
+    clearStorage();
+    res.json({ 
+      status: 'ok',
+      message: 'Storage cleared',
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to clear storage' });
+  }
 });
 
 app.get('/api/packets/:id', (req, res) => {
@@ -125,32 +193,57 @@ app.get('/api/packets/:id', (req, res) => {
 });
 
 app.get('/api/stats', (req, res) => {
-  const packets = getPackets(); // Use real packets instead of mock
-  const stats = {
-    totalPackets: packets.length,
-    protocolDistribution: {},
-    averagePacketSize: 0,
-    timeRange: {
-      earliest: packets[packets.length - 1]?.timestamp,
-      latest: packets[0]?.timestamp
+  try {
+    // Use ALL packets from memory AND storage for comprehensive stats
+    const allPackets = getAllPacketsFromStorage();
+    
+    const stats = {
+      totalPackets: allPackets.length,
+      memoryPackets: getPacketCount(),
+      storageInfo: getStoragePacketCount(),
+      protocolDistribution: {},
+      averagePacketSize: 0,
+      timeRange: {
+        earliest: allPackets[allPackets.length - 1]?.timestamp,
+        latest: allPackets[0]?.timestamp
+      }
+    };
+    
+    // Calculate protocol distribution
+    allPackets.forEach(packet => {
+      stats.protocolDistribution[packet.protocol] = 
+        (stats.protocolDistribution[packet.protocol] || 0) + 1;
+    });
+    
+    // Calculate average packet size
+    if (allPackets.length > 0) {
+      stats.averagePacketSize = Math.round(
+        allPackets.reduce((sum, packet) => sum + packet.length, 0) / allPackets.length
+      );
     }
-  };
-  
-  // Calculate protocol distribution
-  packets.forEach(packet => {
-    stats.protocolDistribution[packet.protocol] = 
-      (stats.protocolDistribution[packet.protocol] || 0) + 1;
-  });
-  
-  // Calculate average packet size
-  if (packets.length > 0) {
-    stats.averagePacketSize = Math.round(
-      packets.reduce((sum, packet) => sum + packet.length, 0) / packets.length
-    );
+    
+    res.json(stats);
+  } catch (error) {
+    console.error('[Stats] Error:', error);
+    res.status(500).json({ error: 'Failed to generate stats' });
   }
-  
-  res.json(stats);
 });
+
+// ============================================================================
+// HELPER FUNCTIONS FOR PACKET RETRIEVAL
+// ============================================================================
+
+function getPacketsForAnalysis(scope = 'recent') {
+  // scope options: 'recent' (500), 'full' (all from memory + storage)
+  if (scope === 'full') {
+    return getAllPacketsFromStorage();
+  }
+  return getRecentPackets(1500);  // Default to recent for performance
+}
+
+// ============================================================================
+// ANALYTICS FUNCTIONS
+// ============================================================================
 
 // Analytics functions
 const analyzePacketsForThreats = (packets) => {
@@ -343,27 +436,47 @@ app.get('/api/virustotal/ip/:ip', async (req, res) => {
   }
 });
 
-// Enhanced threat detection with VirusTotal checks
+// Enhanced threat detection with VirusTotal checks - OPTIMIZED with caching
 app.get('/api/threats/enhanced', async (req, res) => {
   try {
-    const packets = getPackets();
-    const threats = [];
+    const { fullData } = req.query;  // Query param: ?fullData=true for comprehensive analysis
+    
+    // OPTIMIZATION: Check cache first (10-second TTL for repeated requests)
+    const cacheKey = fullData === 'true' ? 'threats-full' : 'threats';
+    let threats = getCachedData(cacheKey);
+    if (threats) {
+      console.debug('[Threats Cache] Serving from cache');
+      return res.json({ 
+        threats,
+        totalThreats: threats.length,
+        timestamp: new Date().toISOString(),
+        cached: true,
+        scope: fullData === 'true' ? 'full-history' : 'recent'
+      });
+    }
+
+    // Cache miss - analyze packets based on request scope
+    const packetsToAnalyze = fullData === 'true' 
+      ? getAllPacketsFromStorage()  // All packets from memory + storage
+      : getRecentPackets(1500);      // Recent packets only
+    
+    const threats_analysis = [];
     const checkedIPs = new Set();
 
     // First get threats from packet analysis
-    const basicThreats = analyzePacketsForThreats(packets);
-    threats.push(...basicThreats);
+    const basicThreats = analyzePacketsForThreats(packetsToAnalyze);
+    threats_analysis.push(...basicThreats);
 
-    // Then check suspicious IPs against VirusTotal
+    // Then check suspicious IPs against VirusTotal (limit to avoid API rate limits)
     const suspiciousIPs = new Set();
-    packets.forEach(packet => {
+    packetsToAnalyze.forEach(packet => {
       // Collect IPs from suspicious connections
       if ([22, 23, 135, 139, 445, 1433, 3389].includes(packet.destPort)) {
         suspiciousIPs.add(packet.destIP);
       }
     });
 
-    // Check each suspicious IP with VirusTotal (limit to avoid API rate limits)
+    // Check each suspicious IP with VirusTotal (limit to top 5 to avoid API rate limits)
     const ipsToCheck = Array.from(suspiciousIPs).slice(0, 5);
     for (const ip of ipsToCheck) {
       if (!isPrivateIP(ip) && !checkedIPs.has(ip)) {
@@ -371,7 +484,7 @@ app.get('/api/threats/enhanced', async (req, res) => {
         try {
           const vtReport = await checkPublicIP(ip);
           if (vtReport && vtReport.stats && (vtReport.stats.malicious > 0 || vtReport.stats.suspicious > 0)) {
-            threats.push({
+            threats_analysis.push({
               id: Date.now() + Math.random(),
               timestamp: new Date().toISOString(),
               type: 'virustotal',
@@ -388,10 +501,16 @@ app.get('/api/threats/enhanced', async (req, res) => {
       }
     }
 
+    // Cache the result for 10 seconds
+    setCachedData(cacheKey, threats_analysis);
+
     res.json({ 
-      threats,
-      totalThreats: threats.length,
-      timestamp: new Date().toISOString() 
+      threats: threats_analysis,
+      totalThreats: threats_analysis.length,
+      timestamp: new Date().toISOString(),
+      cached: false,
+      scope: fullData === 'true' ? 'full-history' : 'recent',
+      analysisScope: `${packetsToAnalyze.length} packets`
     });
   } catch (error) {
     console.error('Enhanced threat analysis error:', error);
@@ -399,12 +518,29 @@ app.get('/api/threats/enhanced', async (req, res) => {
   }
 });
 
-// Analytics API endpoints
+// Analytics API endpoints - OPTIMIZED with caching
 app.get('/api/analytics/logs', (req, res) => {
   try {
-    const packets = getPackets();
-    const logs = generateActivityLogs(packets);
-    res.json({ logs, timestamp: new Date().toISOString() });
+    // Check cache first (10-second TTL)
+    let logs = getCachedData('logs');
+    if (logs) {
+      console.debug('[Logs Cache] Serving from cache');
+      return res.json({ logs, timestamp: new Date().toISOString(), cached: true });
+    }
+
+    // Cache miss - analyze recent packets only
+    const recentPackets = getRecentPackets(1000);
+    logs = generateActivityLogs(recentPackets);
+    
+    // Cache for 10 seconds
+    setCachedData('logs', logs);
+    
+    res.json({ 
+      logs, 
+      timestamp: new Date().toISOString(),
+      cached: false,
+      analysisScope: `recent ${recentPackets.length} packets`
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate analytics logs' });
   }
@@ -412,11 +548,22 @@ app.get('/api/analytics/logs', (req, res) => {
 
 app.get('/api/analytics/threats-timeline', (req, res) => {
   try {
-    const packets = getPackets();
-    const timelineData = generateTimeSeriesData(packets, 'day').slice(-7); // Last 7 days
+    // Check cache first (10-second TTL)
+    let timelineData = getCachedData('timeSeries');
+    if (!timelineData) {
+      // Cache miss - analyze recent packets
+      const recentPackets = getRecentPackets(2000);
+      const fullTimeline = generateTimeSeriesData(recentPackets, 'day');
+      timelineData = fullTimeline.slice(-7); // Last 7 days
+      setCachedData('timeSeries', timelineData);
+    } else {
+      console.debug('[Timeline Cache] Serving from cache');
+    }
+
     res.json({ 
       data: timelineData.map(item => ({ date: item.date, threats: item.threats })),
-      timestamp: new Date().toISOString() 
+      timestamp: new Date().toISOString(),
+      cached: !!getCachedData('timeSeries')
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate threats timeline' });
@@ -425,11 +572,22 @@ app.get('/api/analytics/threats-timeline', (req, res) => {
 
 app.get('/api/analytics/device-activity', (req, res) => {
   try {
-    const packets = getPackets();
-    const timelineData = generateTimeSeriesData(packets, 'day').slice(-7); // Last 7 days
+    // Check cache first (10-second TTL)
+    let deviceData = getCachedData('deviceActivity');
+    if (!deviceData) {
+      // Cache miss - analyze recent packets
+      const recentPackets = getRecentPackets(2000);
+      const fullTimeline = generateTimeSeriesData(recentPackets, 'day');
+      deviceData = fullTimeline.slice(-7); // Last 7 days
+      setCachedData('deviceActivity', deviceData);
+    } else {
+      console.debug('[Device Activity Cache] Serving from cache');
+    }
+
     res.json({ 
-      data: timelineData.map(item => ({ date: item.date, devices: item.devices })),
-      timestamp: new Date().toISOString() 
+      data: deviceData.map(item => ({ date: item.date, devices: item.devices })),
+      timestamp: new Date().toISOString(),
+      cached: !!getCachedData('deviceActivity')
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate device activity data' });
@@ -438,34 +596,56 @@ app.get('/api/analytics/device-activity', (req, res) => {
 
 app.get('/api/analytics/top-devices', (req, res) => {
   try {
-    const packets = getPackets();
-    const devices = analyzeDeviceActivity(packets);
-    const topDevices = devices
-      .sort((a, b) => b.packetCount - a.packetCount)
-      .slice(0, 5)
-      .map(device => ({
-        name: device.ip,
-        packets: device.packetCount
-      }));
+    // Check cache first (10-second TTL)
+    let topDevices = getCachedData('topDevices');
+    if (!topDevices) {
+      // Cache miss - analyze recent packets
+      const recentPackets = getRecentPackets(1500);
+      const devices = analyzeDeviceActivity(recentPackets);
+      topDevices = devices
+        .sort((a, b) => b.packetCount - a.packetCount)
+        .slice(0, 5)
+        .map(device => ({
+          name: device.ip,
+          packets: device.packetCount
+        }));
+      setCachedData('topDevices', topDevices);
+    } else {
+      console.debug('[Top Devices Cache] Serving from cache');
+    }
     
     res.json({ 
       data: topDevices,
-      timestamp: new Date().toISOString() 
+      timestamp: new Date().toISOString(),
+      cached: !!getCachedData('topDevices')
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate top devices data' });
   }
 });
 
-// Devices API endpoint - Extract real devices from packet data with hostname resolution
+// Devices API endpoint - Extract real devices from packet data with hostname resolution - OPTIMIZED with caching
 app.get('/api/devices/all', (req, res) => {
   try {
-    const packets = getPackets();
-    const devices = analyzeDeviceActivity(packets);
+    // Check cache first (10-second TTL)
+    let cachedDevices = getCachedData('devices');
+    if (cachedDevices) {
+      console.debug('[Devices Cache] Serving from cache');
+      return res.json({ 
+        devices: cachedDevices.devices,
+        total: cachedDevices.total,
+        timestamp: new Date().toISOString(),
+        cached: true
+      });
+    }
+
+    // Cache miss - analyze recent packets
+    const recentPackets = getRecentPackets(2000);
+    const devices = analyzeDeviceActivity(recentPackets);
     
-    // Build hostname map from packets
+    // Build hostname map from recent packets
     const hostnameMap = new Map();
-    packets.forEach(packet => {
+    recentPackets.forEach(packet => {
       if (packet.sourceIP && packet.hostname) {
         if (!hostnameMap.has(packet.sourceIP)) {
           hostnameMap.set(packet.sourceIP, packet.hostname);
@@ -481,7 +661,7 @@ app.get('/api/devices/all', (req, res) => {
       // Simple device type detection based on port usage
       let type = 'Unknown';
       const portSet = new Set();
-      packets.forEach(p => {
+      recentPackets.forEach(p => {
         if (p.sourceIP === device.ip) {
           portSet.add(p.sourcePort);
         }
@@ -500,7 +680,7 @@ app.get('/api/devices/all', (req, res) => {
         mac: `${device.ip.split('.').slice(2).join('-')}:${(Math.random() * 256 | 0).toString(16)}`, // Simulated MAC
         vendor: 'Network Device',
         type: type,
-        firstSeen: device.lastSeen, // Using lastSeen as approximation; could track first packet per IP
+        firstSeen: device.lastSeen, // Using lastSeen as approximation
         lastSeen: device.lastSeen,
         trust: 'trusted',
         assignedTo: 'Guest',
@@ -508,10 +688,15 @@ app.get('/api/devices/all', (req, res) => {
       };
     });
 
+    // Cache the result for 10 seconds
+    setCachedData('devices', { devices: fullDevices, total: fullDevices.length });
+
     res.json({ 
       devices: fullDevices,
       total: fullDevices.length,
-      timestamp: new Date().toISOString() 
+      timestamp: new Date().toISOString(),
+      cached: false,
+      analysisScope: `recent ${recentPackets.length} packets`
     });
   } catch (error) {
     console.error('Failed to fetch devices:', error);
@@ -661,21 +846,28 @@ let dashboardCache = {
   activity: null,
   timestamp: 0
 };
-const DASHBOARD_CACHE_TTL = 2000; // 2 second cache
+const DASHBOARD_CACHE_TTL = 10000; // 10 second cache (matches polling interval)
 
 app.get('/api/dashboard/stats', (req, res) => {
   try {
     const now = Date.now();
     // Return cached data if still fresh
     if (dashboardCache.stats && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
-      return res.json({ stats: dashboardCache.stats, timestamp: new Date().toISOString() });
+      return res.json({ stats: dashboardCache.stats, timestamp: new Date().toISOString(), cached: true });
     }
 
-    const packets = getPackets();
-    const stats = generateDashboardStats(packets);
+    // Analyze only recent packets (1500 packet limit)
+    const recentPackets = getRecentPackets(1500);
+    const stats = generateDashboardStats(recentPackets);
     dashboardCache.stats = stats;
     dashboardCache.timestamp = now;
-    res.json({ stats, timestamp: new Date().toISOString() });
+    
+    res.json({ 
+      stats, 
+      timestamp: new Date().toISOString(),
+      cached: false,
+      analysisScope: `recent ${recentPackets.length} packets`
+    });
   } catch (error) {
     console.error('[Dashboard Stats] Error:', error);
     res.status(500).json({ error: 'Failed to generate dashboard stats' });
@@ -686,14 +878,21 @@ app.get('/api/dashboard/alerts', (req, res) => {
   try {
     const now = Date.now();
     if (dashboardCache.alerts && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
-      return res.json({ alerts: dashboardCache.alerts, timestamp: new Date().toISOString() });
+      return res.json({ alerts: dashboardCache.alerts, timestamp: new Date().toISOString(), cached: true });
     }
 
-    const packets = getPackets();
-    const alerts = generateRecentAlerts(packets);
+    // Analyze only recent packets
+    const recentPackets = getRecentPackets(1500);
+    const alerts = generateRecentAlerts(recentPackets);
     dashboardCache.alerts = alerts;
     dashboardCache.timestamp = now;
-    res.json({ alerts, timestamp: new Date().toISOString() });
+    
+    res.json({ 
+      alerts, 
+      timestamp: new Date().toISOString(),
+      cached: false,
+      analysisScope: `recent ${recentPackets.length} packets`
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate recent alerts' });
   }
@@ -703,14 +902,21 @@ app.get('/api/dashboard/devices', (req, res) => {
   try {
     const now = Date.now();
     if (dashboardCache.devices && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
-      return res.json({ devices: dashboardCache.devices, timestamp: new Date().toISOString() });
+      return res.json({ devices: dashboardCache.devices, timestamp: new Date().toISOString(), cached: true });
     }
 
-    const packets = getPackets();
-    const devices = generateNewDevices(packets);
+    // Analyze only recent packets
+    const recentPackets = getRecentPackets(1500);
+    const devices = generateNewDevices(recentPackets);
     dashboardCache.devices = devices;
     dashboardCache.timestamp = now;
-    res.json({ devices, timestamp: new Date().toISOString() });
+    
+    res.json({ 
+      devices, 
+      timestamp: new Date().toISOString(),
+      cached: false,
+      analysisScope: `recent ${recentPackets.length} packets`
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate new devices data' });
   }
@@ -720,14 +926,21 @@ app.get('/api/dashboard/threats', (req, res) => {
   try {
     const now = Date.now();
     if (dashboardCache.threats && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
-      return res.json({ threats: dashboardCache.threats, timestamp: new Date().toISOString() });
+      return res.json({ threats: dashboardCache.threats, timestamp: new Date().toISOString(), cached: true });
     }
 
-    const packets = getPackets();
-    const threats = generateTopThreats(packets);
+    // Analyze only recent packets
+    const recentPackets = getRecentPackets(1500);
+    const threats = generateTopThreats(recentPackets);
     dashboardCache.threats = threats;
     dashboardCache.timestamp = now;
-    res.json({ threats, timestamp: new Date().toISOString() });
+    
+    res.json({ 
+      threats, 
+      timestamp: new Date().toISOString(),
+      cached: false,
+      analysisScope: `recent ${recentPackets.length} packets`
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate top threats data' });
   }
@@ -737,14 +950,21 @@ app.get('/api/dashboard/activity', (req, res) => {
   try {
     const now = Date.now();
     if (dashboardCache.activity && (now - dashboardCache.timestamp) < DASHBOARD_CACHE_TTL) {
-      return res.json({ activity: dashboardCache.activity, timestamp: new Date().toISOString() });
+      return res.json({ activity: dashboardCache.activity, timestamp: new Date().toISOString(), cached: true });
     }
 
-    const packets = getPackets();
-    const activity = generateThreatActivity(packets);
+    // Analyze only recent packets
+    const recentPackets = getRecentPackets(1500);
+    const activity = generateThreatActivity(recentPackets);
     dashboardCache.activity = activity;
     dashboardCache.timestamp = now;
-    res.json({ activity, timestamp: new Date().toISOString() });
+    
+    res.json({ 
+      activity, 
+      timestamp: new Date().toISOString(),
+      cached: false,
+      analysisScope: `recent ${recentPackets.length} packets`
+    });
   } catch (error) {
     res.status(500).json({ error: 'Failed to generate threat activity data' });
   }
