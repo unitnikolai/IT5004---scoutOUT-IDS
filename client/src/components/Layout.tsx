@@ -21,7 +21,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
     <div className="layout">
       <nav className="sidebar">
         <div className="sidebar-header">
-          <FiShield size={32} color="#2196F3" />
+          <img src ="/scoutout.png" alt="ScoutOut Logo" className="logo" />
           <h1>ScoutOut</h1>
         </div>
         

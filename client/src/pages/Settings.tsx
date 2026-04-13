@@ -1,7 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { FiUser, FiBell, FiMoon, FiDatabase, FiSettings } from 'react-icons/fi';
 import { useTheme } from '../ThemeContext';
 import './Settings.css';
+
+const getApiUrl = (): string => {
+  if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL;
+  const { protocol, hostname } = window.location;
+  return `${protocol}//${hostname}:5050/api`;
+};
+
+const API_BASE_URL = getApiUrl();
 
 const Settings: React.FC = () => {
   const { theme, setTheme } = useTheme();
@@ -11,12 +19,48 @@ const Settings: React.FC = () => {
   const [dataRetention, setDataRetention] = useState(30);
   const [updateFrequency, setUpdateFrequency] = useState(5);
   const [virusTotalApiKey, setVirusTotalApiKey] = useState('');
+  const [vtKeyConfigured, setVtKeyConfigured] = useState(false);
+  const [vtSaveStatus, setVtSaveStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+
+  // On mount: check if the server already has a key configured, and pre-fill
+  // from localStorage so the user can see what they last entered.
+  useEffect(() => {
+    const stored = localStorage.getItem('vt_api_key_hint') || '';
+    if (stored) setVirusTotalApiKey(stored);
+
+    fetch(`${API_BASE_URL}/settings/virustotal-key/status`)
+      .then((r) => r.json())
+      .then((d) => setVtKeyConfigured(d.configured || false))
+      .catch(() => {});
+  }, []);
 
   const handleThemeChange = (newTheme: 'light' | 'dark') => {
     setTheme(newTheme);
   };
 
+  const saveVirusTotalKey = async () => {
+    if (!virusTotalApiKey.trim()) return;
+    setVtSaveStatus('saving');
+    try {
+      const res = await fetch(`${API_BASE_URL}/settings/virustotal-key`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ apiKey: virusTotalApiKey.trim() }),
+      });
+      if (!res.ok) throw new Error('Server error');
+      // Store a hint in localStorage so the field stays populated on reload
+      localStorage.setItem('vt_api_key_hint', virusTotalApiKey.trim());
+      setVtKeyConfigured(true);
+      setVtSaveStatus('saved');
+      setTimeout(() => setVtSaveStatus('idle'), 3000);
+    } catch {
+      setVtSaveStatus('error');
+      setTimeout(() => setVtSaveStatus('idle'), 3000);
+    }
+  };
+
   const handleSave = () => {
+    saveVirusTotalKey();
     alert('Settings saved successfully!');
   };
 
@@ -188,14 +232,32 @@ const Settings: React.FC = () => {
           </div>
           <div className="card-content">
             <div className="form-group">
-              <label>VirusTotal API Key</label>
+              <label>VirusTotal API Key
+                {vtKeyConfigured && (
+                  <span style={{ marginLeft: 8, color: '#4caf50', fontSize: '0.78em' }}>✓ Active on server</span>
+                )}
+              </label>
               <input 
-                type="text" 
+                type="password"
                 value={virusTotalApiKey}
                 onChange={(e) => setVirusTotalApiKey(e.target.value)}
                 placeholder="Enter your VirusTotal API key"
               />
-              <p className="help-text">Get your API key from <a href="https://www.virustotal.com" target="_blank" rel="noopener noreferrer">virustotal.com</a></p>
+              <p className="help-text">
+                Get your free API key from{' '}
+                <a href="https://www.virustotal.com" target="_blank" rel="noopener noreferrer">virustotal.com</a>.{' '}
+                All unique public HTTPS source IPs are automatically screened against VirusTotal on the Threats page.
+              </p>
+              <button
+                onClick={saveVirusTotalKey}
+                disabled={vtSaveStatus === 'saving' || !virusTotalApiKey.trim()}
+                style={{ marginTop: 8 }}
+              >
+                {vtSaveStatus === 'saving' ? 'Saving…'
+                  : vtSaveStatus === 'saved' ? '✓ Saved'
+                  : vtSaveStatus === 'error' ? '✗ Error — try again'
+                  : 'Apply API Key'}
+              </button>
             </div>
             <div className="form-group">
               <label>Router Model</label>

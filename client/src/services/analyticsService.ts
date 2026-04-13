@@ -65,13 +65,11 @@ export interface AnalyticsResponse<T> {
 }
 
 export const analyticsService = {
-  // Cancel all pending requests
   cancelRequests(): void {
     abortController.abort();
     abortController = new AbortController();
   },
 
-  // Get activity logs
   async getLogs(): Promise<AnalyticsResponse<LogEntry[]>> {
     try {
       const response = await api.get('/analytics/logs', {
@@ -87,7 +85,6 @@ export const analyticsService = {
     }
   },
 
-  // Get threats timeline data
   async getThreatsTimeline(): Promise<AnalyticsResponse<TimeSeriesData[]>> {
     try {
       const response = await api.get('/analytics/threats-timeline', {

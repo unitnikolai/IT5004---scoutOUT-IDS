@@ -1,15 +1,14 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const { addPacket, getPackets, getRecentPackets, getPacketCount, getAllPacketsFromStorage, getStoragePacketCount, clearStorage } = require('./packetStore.js');
-const { isPrivateIP, checkPublicIP } = require('./virustotal.js');
+const { isPrivateIP, checkPublicIP, setApiKey, hasApiKey } = require('./virustotal.js');
 const app = express();
 const PORT = process.env.PORT || 5050;
 // Middleware
 app.use(cors());
 app.use(express.json());
-
-require('dotenv').config();
 
 const VT_API_KEY = process.env.VIRUSTOTAL_API_KEY;
 const vtCache = new Map();
@@ -516,6 +515,25 @@ const generateTimeSeriesData = (packets, groupBy = 'hour') => {
     packets: entry.packets
   })).sort();
 };
+
+// ============================================================================
+// SETTINGS — VirusTotal API key (runtime update)
+// ============================================================================
+
+// POST /api/settings/virustotal-key  { apiKey: "..." }
+app.post('/api/settings/virustotal-key', (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey || typeof apiKey !== 'string' || apiKey.trim().length === 0) {
+    return res.status(400).json({ error: 'apiKey is required' });
+  }
+  setApiKey(apiKey.trim());
+  res.json({ success: true, message: 'VirusTotal API key updated' });
+});
+
+// GET /api/settings/virustotal-key/status  — tells the frontend if a key is active (never returns the key itself)
+app.get('/api/settings/virustotal-key/status', (req, res) => {
+  res.json({ configured: hasApiKey() });
+});
 
 // VirusTotal API endpoint for threat detection
 app.get('/api/virustotal/ip/:ip', async (req, res) => {

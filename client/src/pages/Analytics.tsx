@@ -42,9 +42,9 @@ const Analytics: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
-  const fetchAnalyticsData = async (hasCachedData: boolean = false) => {
+  const fetchAnalyticsData = async (showSpinner: boolean = false) => {
     try {
-      setLoading(true);
+      if (showSpinner) setLoading(true);
       setError(null);
 
       const [logsResponse, threatsResponse, devicesResponse, topDevicesResponse] = await Promise.all([
@@ -90,13 +90,13 @@ const Analytics: React.FC = () => {
     // Always fetch fresh analytics data from backend storage
     // Backend now always pulls from storage - this is the source of truth
     
-    // Fetch fresh data immediately
-    fetchAnalyticsData(false);
-    
-    // Poll for updated analytics every 1 minute
+    // Fetch fresh data immediately (show spinner on first load)
+    fetchAnalyticsData(true);
+
+    // Poll silently every 60 seconds — no spinner so charts don't blank out
     const interval = setInterval(() => {
       fetchAnalyticsData(false);
-    }, 60000); // 1 minute
+    }, 60000);
     
     // Cleanup: cancel pending requests and clear interval when component unmounts
     return () => {
@@ -144,7 +144,7 @@ const Analytics: React.FC = () => {
       {error && (
         <div className="error-banner">
           <p>{error}</p>
-          <button onClick={() => fetchAnalyticsData(false)} disabled={loading}>
+          <button onClick={() => fetchAnalyticsData(true)} disabled={loading}>
             Try Again
           </button>
         </div>
@@ -154,7 +154,7 @@ const Analytics: React.FC = () => {
       <div className="export-section">
         <button 
           className="export-btn refresh-btn" 
-          onClick={() => fetchAnalyticsData(false)} 
+          onClick={() => fetchAnalyticsData(true)}
           disabled={loading}
         >
           <FiRefreshCw className={loading ? 'spinning' : ''} /> 

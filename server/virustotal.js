@@ -1,8 +1,22 @@
 // ==================== VIRUSTOTAL INTEGRATION (IP ONLY + PRIVATE IP SKIP) ====================
 
 // Configuration
-const VT_API_KEY = process.env.VIRUSTOTAL_API_KEY;
+// Key can be set at startup via env var, or updated at runtime via setApiKey()
+let VT_API_KEY = process.env.VIRUSTOTAL_API_KEY || '';
 const CACHE_TTL = 24 * 60 * 60 * 1000; // 24 hours cache
+
+/** Update the VirusTotal API key at runtime (called from the settings endpoint). */
+function setApiKey(key) {
+  VT_API_KEY = (key || '').trim();
+  // Clear cache so the new key is used immediately for fresh lookups
+  vtCache.clear();
+  console.log('[VirusTotal] API key updated at runtime');
+}
+
+/** Return true if a key is currently configured. */
+function hasApiKey() {
+  return VT_API_KEY.length > 0;
+}
 
 // Simple in-memory cache for VirusTotal results
 const vtCache = new Map();
@@ -38,7 +52,7 @@ async function checkPublicIP(ip) {
   }
 
   if (!VT_API_KEY) {
-    console.warn('VIRUSTOTAL_API_KEY not set in .env');
+    console.warn('VIRUSTOTAL_API_KEY not set — configure it in Settings or via the VIRUSTOTAL_API_KEY env var');
     return { error: 'VT API key not configured' };
   }
 
@@ -61,4 +75,4 @@ async function checkPublicIP(ip) {
   }
 }
 
-module.exports = { isPrivateIP, checkPublicIP, }
+module.exports = { isPrivateIP, checkPublicIP, setApiKey, hasApiKey }

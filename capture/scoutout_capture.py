@@ -67,6 +67,7 @@ _UDP_PROTO: Dict[int, str] = {
     67: "DHCP",
     68: "DHCP",
     123: "NTP",
+    443: "HTTPS",   # QUIC / HTTP3
     5353: "mDNS",
     1900: "SSDP",
 }
@@ -79,6 +80,21 @@ _PAYLOAD_PREVIEW: int = 200
 
 # Web protocols that get priority batching
 _WEB_PROTOCOLS: frozenset = frozenset({"HTTP", "HTTPS"})
+
+# Mapping from human-readable protocol names to BPF capture filters
+_PROTOCOL_BPF_MAP: Dict[str, str] = {
+    "HTTP":  "tcp port 80 or tcp port 8080",
+    "HTTPS": "tcp port 443 or tcp port 8443 or udp port 443",  # includes QUIC/HTTP3
+    "SSH":   "tcp port 22",
+    "FTP":   "tcp port 21",
+    "SMTP":  "tcp port 25 or tcp port 587 or tcp port 465",
+    "DNS":   "udp port 53",
+    "DHCP":  "udp port 67 or udp port 68",
+    "NTP":   "udp port 123",
+    "ICMP":  "icmp",
+    "TCP":   "tcp",
+    "UDP":   "udp",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -113,6 +129,7 @@ class PacketCapture:
         batch_size: int = 50,
         batch_wait_time: float = 2.0,
         filter_ports: Optional[set] = None,
+        protocol_filter: Optional[str] = None,
     ) -> None:
         self.api_url = api_url.rstrip("/")
         self.interface = interface
@@ -120,6 +137,8 @@ class PacketCapture:
         self.batch_size = batch_size
         self.batch_wait_time = batch_wait_time
         self.filter_ports = filter_ports or set()  # Set of ports to filter out
+        # Optional application-layer protocol filter (e.g. "HTTPS", "DNS")
+        self.protocol_filter: Optional[str] = protocol_filter.upper() if protocol_filter else None
 
         # Internal queue — bounded so the process never OOMs
         self.packet_queue: Queue = Queue(maxsize=max_queue_size)
@@ -313,6 +332,20 @@ class PacketCapture:
                     or _TCP_PROTO.get(sport)
                     or "TCP"
                 )
+
+                # TLS fallback: if scapy didn't resolve via port, check the
+                # raw payload for a TLS record header (content-type 0x14–0x17,
+                # major version 0x03).  This catches TLS on non-standard ports
+                # and port-443 frames where scapy exposes no Raw layer name.
+                if proto == "TCP" and Raw in packet:
+                    raw_bytes = packet[Raw].load
+                    if (
+                        len(raw_bytes) >= 3
+                        and raw_bytes[0] in (0x14, 0x15, 0x16, 0x17)  # TLS record types
+                        and raw_bytes[1] == 0x03                        # TLS major version
+                    ):
+                        proto = "HTTPS"
+
                 data["protocol"] = proto
 
                 # Application-layer enrichment
@@ -348,6 +381,10 @@ class PacketCapture:
                 dest_in_filter = data["destPort"] in self.filter_ports
                 if source_in_filter or dest_in_filter:
                     return None  # Skip packets on filtered ports
+
+            # ── Application-layer protocol filter ────────────────────
+            if self.protocol_filter and data["protocol"] != self.protocol_filter:
+                return None  # Drop packets that don't match the requested protocol
 
             # Fallback payload summary when Raw is absent
             if not data["payload"]:
@@ -688,6 +725,15 @@ def main() -> None:
         help='Comma-separated ports to filter out (e.g. "3000,5050"). Omit flag to disable filtering.'
     )
     parser.add_argument(
+        "--protocol", "-p",
+        default=None,
+        help=(
+            "Only capture a specific protocol. "
+            "Accepted values (case-insensitive): "
+            + ", ".join(_PROTOCOL_BPF_MAP.keys())
+        ),
+    )
+    parser.add_argument(
         "--filter", "-f",
         default="",
         help='BPF capture filter, e.g. "tcp port 80"',
@@ -734,6 +780,22 @@ def main() -> None:
             logger.error("Invalid --filter-out format. Use comma-separated integers, e.g. '3000,5050'")
             sys.exit(1)
 
+    # Resolve --protocol into a BPF expression and combine with --filter
+    bpf_filter = args.filter
+    protocol_filter = None
+    if args.protocol:
+        proto_upper = args.protocol.upper()
+        if proto_upper not in _PROTOCOL_BPF_MAP:
+            logger.error(
+                "Unknown protocol '%s'. Valid options: %s",
+                args.protocol, ", ".join(_PROTOCOL_BPF_MAP.keys()),
+            )
+            sys.exit(1)
+        proto_bpf = _PROTOCOL_BPF_MAP[proto_upper]
+        bpf_filter = f"({proto_bpf}) and ({bpf_filter})" if bpf_filter else proto_bpf
+        protocol_filter = proto_upper
+        logger.info("Protocol filter: %s  →  BPF: %s", proto_upper, proto_bpf)
+
     capture = PacketCapture(
         api_url=args.api_url,
         interface=args.interface,
@@ -741,9 +803,10 @@ def main() -> None:
         batch_size=args.batch_size,
         batch_wait_time=args.batch_wait_time,
         filter_ports=filter_ports,
+        protocol_filter=protocol_filter,
     )
 
-    success = capture.start(args.filter)
+    success = capture.start(bpf_filter)
     sys.exit(0 if success else 1)
 
 

@@ -26,8 +26,8 @@ const EXAMPLE_THREAT: Threat = {
   id: 9999,
   message: 'Suspicious Port Scan Detected (Example)',
   details: 'Multiple connection attempts detected on port 22 (SSH) from unknown source',
-  sourceIP: '192.168.1.105',
-  destIP: '192.168.1.1',
+  sourceIP: '192.168.4.105',
+  destIP: '192.168.4.1',
   severity: 'medium',
   timestamp: new Date().toISOString(),
   type: 'port-scan'
@@ -63,131 +63,80 @@ interface IPReputation {
 }
 
 const Threats: React.FC = () => {
-  // Automatically cancel requests when navigating away
   useRouteCleanup();
 
-  const [threats, setThreats] = useState<Threat[]>([]);
-  const [virusTotalThreats, setVirusTotalThreats] = useState<VirusTotalThreat[]>([]);
+  const [allThreats, setAllThreats] = useState<Threat[]>([]);
   const [ipReputation, setIpReputation] = useState<IPReputation[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedThreat, setSelectedThreat] = useState<Threat | null>(null);
   const [filterSeverity, setFilterSeverity] = useState('all');
-  const [abortController, setAbortController] = useState(new AbortController());
+  const abortRef = React.useRef<AbortController | null>(null);
 
-  const fetchThreats = async (hasCachedData: boolean = false) => {
+  const fetchThreats = async () => {
+    // Cancel any in-flight request
+    if (abortRef.current) abortRef.current.abort();
+    abortRef.current = new AbortController();
+
     try {
-      // Only show loading if we have no cached data
-      if (!hasCachedData) {
-        setLoading(true);
-      }
       setError(null);
       const response = await fetch(`${API_BASE_URL}/threats/enhanced`, {
-        signal: abortController.signal
+        signal: abortRef.current.signal
       });
-      if (!response.ok) throw new Error('Failed to fetch threats');
+      if (!response.ok) throw new Error(`Server returned ${response.status}`);
       const data = await response.json();
-      const fetchedThreats = data.threats || [];
-      
-      if (fetchedThreats.length > 0) {
-        // Separate VirusTotal threats from other threats
-        const vtThreats = fetchedThreats.filter((t: any) => 
-          t.type === 'virustotal-https' || t.type === 'virustotal-port-scan'
-        ) as VirusTotalThreat[];
-        
-        const otherThreats = fetchedThreats.filter((t: any) => 
-          t.type !== 'virustotal-https' && t.type !== 'virustotal-port-scan'
-        );
-        
-        // Extract unique IP reputation data from VirusTotal threats
-        const ipReputationMap = new Map<string, IPReputation>();
-        vtThreats.forEach((threat) => {
-          const ip = threat.sourceIP;
-          if (!ipReputationMap.has(ip) && threat.vtReport) {
-            const malicious = threat.vtReport.malicious;
-            const suspicious = threat.vtReport.suspicious;
-            const isSafe = malicious === 0 && suspicious === 0;
-            
-            let severity: 'critical' | 'high' | 'medium' | 'low' = 'low';
-            if (malicious > 0) severity = 'critical';
-            else if (suspicious > 0) severity = 'high';
-            else if (malicious + suspicious > 0) severity = 'medium';
-            
+      const fetched: Threat[] = data.threats || [];
+
+      // Build IP reputation map from VT threats
+      const ipReputationMap = new Map<string, IPReputation>();
+      fetched.forEach((t: any) => {
+        if ((t.type === 'virustotal-https' || t.type === 'virustotal-port-scan') && t.vtReport) {
+          const ip = t.sourceIP;
+          if (!ipReputationMap.has(ip)) {
+            const { malicious, suspicious, undetected } = t.vtReport;
             ipReputationMap.set(ip, {
               ip,
               malicious,
               suspicious,
-              undetected: threat.vtReport.undetected,
-              isSafe,
-              severity
+              undetected,
+              isSafe: malicious === 0 && suspicious === 0,
+              severity: malicious > 0 ? 'critical' : suspicious > 0 ? 'high' : 'low'
             });
           }
-        });
-        
-        // Replace cache with fresh threats
-        threatsCache.replace(fetchedThreats);
-        setThreats(otherThreats);
-        setVirusTotalThreats(vtThreats);
-        setIpReputation(Array.from(ipReputationMap.values()));
-      } else {
-        // No threats detected - show example threat with cached threats
-        const cached = threatsCache.load();
-        if (cached.length === 0) {
-          // No real threats and no cache - show example
-          setThreats([EXAMPLE_THREAT]);
-          setVirusTotalThreats([]);
-          setIpReputation([]);
-          console.log('[Threats] No real threats detected, showing example');
-        } else {
-          // Show cached threats
-          setThreats(cached);
-          setVirusTotalThreats([]);
-          setIpReputation([]);
         }
-      }
+      });
+
+      threatsCache.replace(fetched);
+      setAllThreats(fetched.length > 0 ? fetched : [EXAMPLE_THREAT]);
+      setIpReputation(Array.from(ipReputationMap.values()));
     } catch (err: any) {
-      // Silently ignore abort errors (user navigated away or request was cancelled)
-      // Includes DNS cancellations (ns binding) that occur during navigation
-      const message = err?.message?.toLowerCase() || '';
-      const isAbortError = (
-        err?.name === 'AbortError' || 
-        message.includes('abort') ||
-        message.includes('ns binding') ||
-        message.includes('cancel')
-      );
-      if (!isAbortError) {
-        console.error('Error fetching threats:', err);
-        setError('Failed to load threats');
-      }
-      // IMPORTANT: Keep existing data if available - do not wipe state on abort errors
+      if (err?.name === 'AbortError') return; // navigated away — keep existing data
+      console.error('Error fetching threats:', err);
+      // Fall back to cache so the page never stays blank
+      const cached = threatsCache.load();
+      setAllThreats(cached.length > 0 ? cached : [EXAMPLE_THREAT]);
+      setError('Could not reach server — showing cached data');
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    // Load cached data on mount
+    // Show cached data immediately so the page isn't blank while fetching
     const cached = threatsCache.load();
-    const hasCachedData = cached.length > 0;
-    
-    if (hasCachedData) {
-      setThreats(cached);
-      console.log('[Threats] Loaded from cache:', cached.length, 'threats');
+    if (cached.length > 0) {
+      setAllThreats(cached);
+      setLoading(false);
     }
 
-    // Fetch fresh threats (skip loading indicator if we have cached data)
-    fetchThreats(hasCachedData);
-    
-    // Refresh every 10 seconds
-    const interval = setInterval(() => {
-      fetchThreats(true); // Always skip loading for polling since we keep cached data
-    }, 10000);
-    
-    // Cleanup: cancel pending requests when component unmounts
+    fetchThreats();
+    const interval = setInterval(fetchThreats, 30000);
+
     return () => {
       clearInterval(interval);
-      abortController.abort();
+      abortRef.current?.abort();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getSeverityColor = (severity: string) => {
@@ -204,9 +153,9 @@ const Threats: React.FC = () => {
     return new Date(timestamp).toLocaleString();
   };
 
-  const filteredThreats = filterSeverity === 'all' 
-    ? threats 
-    : threats.filter(t => t.severity === filterSeverity);
+  const filteredThreats = filterSeverity === 'all'
+    ? allThreats
+    : allThreats.filter(t => t.severity === filterSeverity);
 
   return (
     <div className="threats-page">
@@ -229,82 +178,24 @@ const Threats: React.FC = () => {
           </select>
         </div>
         <div className="threat-count">
-          {loading ? 'Loading...' : `${filteredThreats.length} threat(s) detected`}
+          {loading ? 'Scanning…' : `${filteredThreats.length} threat(s) detected`}
           <button
             className="cache-clear-btn"
-            onClick={async () => {
+            onClick={() => {
               threatsCache.clear();
-              setThreats([EXAMPLE_THREAT]); // Show example when cleared
-              setVirusTotalThreats([]);
+              setAllThreats([]);
               setIpReputation([]);
-              console.log('[Threats] Cache cleared, showing example threat...');
-              // Immediately fetch fresh data after clearing
-              await fetchThreats();
+              setLoading(true);
+              fetchThreats();
             }}
-            title="Clear threats cache"
+            title="Clear cache and refresh"
           >
-            Clear Cache
+            Refresh
           </button>
         </div>
       </div>
 
-      {/* VirusTotal IP Reputation Section */}
-      {ipReputation.length > 0 && (
-        <div className="virustotal-section">
-          <div className="section-header">
-            <h2>IP Reputation (VirusTotal)</h2>
-            <span className="badge">{ipReputation.length} IPs analyzed</span>
-          </div>
-          
-          <div className="ip-reputation-grid">
-            {ipReputation.map((ip) => (
-              <div 
-                key={ip.ip} 
-                className={`ip-card ${ip.isSafe ? 'safe' : 'suspicious'}`}
-              >
-                <div className="ip-header">
-                  <div className="ip-address">
-                    <span className="label">IP Address:</span>
-                    <span className="value">{ip.ip}</span>
-                  </div>
-                  <div className="safety-badge" style={{
-                    backgroundColor: ip.isSafe ? '#4CAF50' : '#D32F2F'
-                  }}>
-                    {ip.isSafe ? '✓ SAFE' : '⚠ MALICIOUS'}
-                  </div>
-                </div>
-
-                <div className="ip-stats">
-                  <div className="stat">
-                    <span className="stat-label">Malicious</span>
-                    <span className="stat-value malicious">{ip.malicious}</span>
-                  </div>
-                  <div className="stat">
-                    <span className="stat-label">Suspicious</span>
-                    <span className="stat-value suspicious">{ip.suspicious}</span>
-                  </div>
-                  <div className="stat">
-                    <span className="stat-label">Undetected</span>
-                    <span className="stat-value undetected">{ip.undetected}</span>
-                  </div>
-                </div>
-
-                <div className="ip-severity">
-                  <span className="severity-label">Severity:</span>
-                  <span 
-                    className={`severity-badge ${ip.severity}`}
-                    style={{ backgroundColor: getSeverityColor(ip.severity) }}
-                  >
-                    {ip.severity.toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Regular Threats Section */}
+      {/* Threats List — all threats (including VirusTotal) use the same card */}
       {loading ? (
         <div className="loading-state">
           <p>Loading threats...</p>
@@ -315,7 +206,9 @@ const Threats: React.FC = () => {
         </div>
       ) : (
       <div className="threats-list">
-        {filteredThreats.map(threat => (
+        {filteredThreats.map(threat => {
+          const vt = (threat as any).vtReport;
+          return (
           <div 
             key={threat.id} 
             className="threat-card"
@@ -345,6 +238,18 @@ const Threats: React.FC = () => {
                   <span className="stat-label">Detected:</span>
                   <span className="stat-value">{formatTimestamp(threat.timestamp)}</span>
                 </div>
+                {vt && (
+                  <>
+                    <div className="stat-item">
+                      <span className="stat-label">VT Malicious:</span>
+                      <span className="stat-value" style={{ color: '#D32F2F', fontWeight: 600 }}>{vt.malicious}</span>
+                    </div>
+                    <div className="stat-item">
+                      <span className="stat-label">VT Suspicious:</span>
+                      <span className="stat-value" style={{ color: '#FF9800', fontWeight: 600 }}>{vt.suspicious}</span>
+                    </div>
+                  </>
+                )}
               </div>
               <div className="threat-details">
                 <p>{threat.details}</p>
@@ -356,7 +261,8 @@ const Threats: React.FC = () => {
               <button className="action-btn investigate-btn">Investigate</button>
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
       )}
 

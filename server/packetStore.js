@@ -4,7 +4,7 @@ const path = require('path');
 // In-memory storage - SMALL limit to prevent memory crashes
 const packets = [];
 const MAX_MEMORY_PACKETS = 500;  // Changed from 5000 to 500 - small working set only
-const MAX_PACKET_AGE_MS = 3600000; // Keep stored packets for 1 hour
+const MAX_PACKET_AGE_MS = 7 * 24 * 60 * 60 * 1000; // Keep stored packets for 7 days
 let lastCleanupTime = Date.now();
 const CLEANUP_INTERVAL = 60000; // Run cleanup every minute
 
