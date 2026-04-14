@@ -2,8 +2,6 @@
 
 Scout OUT is a plug and play home cybersecurity system that helps families easily monitor and protect their Wi Fi networks and IoT devices through simple, real time alerts and controls.
 
-!!!PUT SCREENSHOT!!!
-
 ## Features
 
 - **Real-time Packet Viewing**: Display packet capture data in an easy-to-read table format
@@ -15,10 +13,9 @@ Scout OUT is a plug and play home cybersecurity system that helps families easil
 
 ## Technology Stack
 
-- **Frontend**: React with TypeScript
-- **Backend**: 
-- **Styling**: Custom CSS with responsive design
-- **HTTP Client**: Axios for API communication
+- **Frontend**: Next.js
+- **Backend**: Generic API server, VirusTotal
+- **Supporting Components**: Python sensor using Scapy, captures packets and Sends JSON data to the API.
 
 ## Quick Start
 
